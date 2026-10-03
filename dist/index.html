@@ -1,0 +1,1184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SpectraTrace is an educational portal for comparing uploaded FTIR data with a curated teaching library and following the evidence into NMR, UV and molecular structure references.">
+  <title>SpectraTrace · From spectrum to structure</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23101831'/%3E%3Cpath d='M10 37h9l5-18 8 31 7-24 5 11h10' fill='none' stroke='%237cf7d4' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --ink: #f5f7ff;
+      --muted: #99a5c2;
+      --soft: #cbd3e8;
+      --bg: #080b16;
+      --panel: #10162a;
+      --panel-2: #151d35;
+      --line: rgba(173, 190, 227, .16);
+      --mint: #7cf7d4;
+      --blue: #83a7ff;
+      --violet: #a994ff;
+      --amber: #ffca7b;
+      --danger: #ff8c9c;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .42);
+      --radius: 22px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 16% 4%, rgba(74, 98, 186, .18), transparent 34rem),
+        radial-gradient(circle at 92% 88%, rgba(37, 172, 146, .10), transparent 30rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.75), transparent 88%);
+    }
+    a { color: inherit; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .app-shell { min-height: 100vh; position: relative; z-index: 1; }
+    .topbar {
+      width: min(1400px, calc(100% - 40px));
+      height: 78px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      text-decoration: none;
+      font-weight: 760;
+      letter-spacing: -.02em;
+    }
+    .brand-mark {
+      width: 34px; height: 34px;
+      border: 1px solid rgba(124,247,212,.38);
+      border-radius: 10px;
+      display: grid; place-items: center;
+      background: rgba(124,247,212,.08);
+      box-shadow: inset 0 0 18px rgba(124,247,212,.08);
+    }
+    .brand-mark svg { width: 22px; }
+    .topnav { display: flex; align-items: center; gap: 6px; }
+    .nav-link, .ghost-btn {
+      border: 0;
+      background: transparent;
+      text-decoration: none;
+      padding: 10px 13px;
+      border-radius: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: .2s ease;
+    }
+    .nav-link:hover, .ghost-btn:hover { color: var(--ink); background: rgba(255,255,255,.055); }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px;
+      color: var(--soft); font-size: .8rem; background: rgba(255,255,255,.025);
+    }
+    .status-pill::before {
+      content: ""; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--mint); box-shadow: 0 0 12px var(--mint);
+    }
+    .landing {
+      min-height: calc(100vh - 78px);
+      display: grid;
+      place-items: center;
+      padding: 54px 24px 110px;
+      position: relative;
+      overflow: hidden;
+    }
+    .landing::before {
+      content: "";
+      position: absolute;
+      width: min(76vw, 880px);
+      height: min(76vw, 880px);
+      border-radius: 50%;
+      border: 1px solid rgba(131,167,255,.13);
+      box-shadow:
+        0 0 0 70px rgba(131,167,255,.025),
+        0 0 0 140px rgba(131,167,255,.018);
+      animation: breathe 7s ease-in-out infinite;
+    }
+    @keyframes breathe { 50% { transform: scale(1.035); opacity: .7; } }
+    .hero {
+      width: min(820px, 100%);
+      position: relative;
+      text-align: center;
+    }
+    .eyebrow {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      color: var(--mint);
+      font-weight: 700;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      font-size: .75rem;
+      margin-bottom: 22px;
+    }
+    .hero h1 {
+      font-size: clamp(4.4rem, 12vw, 8.8rem);
+      line-height: .86;
+      letter-spacing: -.075em;
+      margin: 0;
+      font-weight: 790;
+      background: linear-gradient(125deg, #fff 24%, #a9bbef 63%, #7cf7d4 110%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero-copy {
+      max-width: 600px;
+      margin: 30px auto 34px;
+      font-size: clamp(1rem, 1.7vw, 1.18rem);
+      color: var(--muted);
+    }
+    .search-rack {
+      width: min(720px, 100%);
+      margin: 0 auto;
+      padding: 9px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      border: 1px solid rgba(173,190,227,.23);
+      border-radius: 20px;
+      background: rgba(16,22,42,.82);
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,.05);
+    }
+    .search-field { position: relative; }
+    .search-field svg {
+      position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+      width: 19px; color: var(--muted);
+    }
+    .search-field input {
+      width: 100%;
+      min-height: 50px;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      padding: 0 14px 0 45px;
+      outline: none;
+      font-size: 1rem;
+    }
+    .search-field input::placeholder { color: #6f7b99; }
+    .primary-btn, .upload-btn, .small-btn, .source-link {
+      border: 0; border-radius: 13px; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+      font-weight: 720; transition: transform .2s ease, background .2s ease, border-color .2s ease;
+    }
+    .primary-btn { min-height: 50px; padding: 0 19px; color: #06130f; background: var(--mint); }
+    .upload-btn {
+      min-height: 50px; padding: 0 18px;
+      background: rgba(131,167,255,.13); border: 1px solid rgba(131,167,255,.27);
+      color: #dce5ff;
+    }
+    .primary-btn:hover, .upload-btn:hover, .small-btn:hover, .source-link:hover { transform: translateY(-1px); }
+    .primary-btn svg, .upload-btn svg { width: 18px; }
+    .hero-foot {
+      margin-top: 17px;
+      display: flex; justify-content: center; align-items: center; gap: 9px; flex-wrap: wrap;
+      color: #7f8aa6; font-size: .82rem;
+    }
+    .hero-foot button {
+      color: var(--soft); border: 0; border-bottom: 1px solid #586480;
+      background: transparent; padding: 0; cursor: pointer;
+    }
+    .format-chips {
+      display: flex; justify-content: center; gap: 8px; margin-top: 32px; flex-wrap: wrap;
+    }
+    .format-chips span {
+      border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px;
+      color: #8995b2; font-size: .75rem; background: rgba(255,255,255,.02);
+    }
+    .workspace { display: none; padding-bottom: 48px; }
+    .workspace.active { display: block; animation: reveal .42s ease both; }
+    .landing.hidden { display: none; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(10px); } }
+    .workspace-head {
+      width: min(1400px, calc(100% - 40px));
+      margin: 8px auto 18px;
+      display: flex; align-items: end; justify-content: space-between; gap: 20px;
+    }
+    .workspace-head h1 { margin: 0 0 4px; font-size: clamp(1.7rem, 3vw, 2.55rem); letter-spacing: -.045em; }
+    .workspace-head p { margin: 0; color: var(--muted); }
+    .head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .small-btn {
+      min-height: 42px; padding: 0 14px;
+      background: var(--panel); border: 1px solid var(--line); color: var(--soft);
+    }
+    .small-btn.accent { background: var(--mint); color: #06130f; border-color: transparent; }
+    .dashboard {
+      width: min(1400px, calc(100% - 40px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr) 330px;
+      gap: 16px;
+      align-items: start;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(150deg, rgba(23,31,57,.94), rgba(13,18,34,.96));
+      box-shadow: 0 18px 50px rgba(0,0,0,.20);
+      overflow: hidden;
+    }
+    .panel-label {
+      padding: 17px 18px 10px;
+      display: flex; justify-content: space-between; align-items: center;
+      color: var(--muted); font-size: .74rem; font-weight: 750;
+      text-transform: uppercase; letter-spacing: .1em;
+    }
+    .candidate-list { padding: 4px 8px 10px; }
+    .candidate {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 15px;
+      padding: 13px 12px;
+      background: transparent;
+      color: inherit;
+      display: grid;
+      grid-template-columns: 38px 1fr auto;
+      gap: 10px; align-items: center;
+      text-align: left; cursor: pointer;
+      transition: .2s ease;
+    }
+    .candidate:hover { background: rgba(255,255,255,.045); }
+    .candidate.active { background: rgba(124,247,212,.08); border-color: rgba(124,247,212,.20); }
+    .rank {
+      width: 34px; height: 34px; display: grid; place-items: center;
+      border-radius: 10px; background: rgba(255,255,255,.055); color: var(--muted);
+      font-size: .8rem; font-weight: 800;
+    }
+    .candidate.active .rank { background: var(--mint); color: #08140f; }
+    .candidate strong { display: block; font-size: .88rem; }
+    .candidate small { display: block; color: var(--muted); font-size: .72rem; }
+    .score { font-size: .78rem; color: var(--mint); font-weight: 800; }
+    .confidence {
+      margin: 9px 11px 14px; padding: 13px;
+      border-radius: 14px; background: rgba(255,255,255,.035);
+    }
+    .confidence-head { display: flex; justify-content: space-between; font-size: .78rem; color: var(--soft); }
+    .meter { height: 6px; background: #252d44; border-radius: 999px; margin-top: 10px; overflow: hidden; }
+    .meter span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--mint)); transition: width .6s ease; }
+    .analysis-panel { min-width: 0; }
+    .analysis-top {
+      padding: 16px 18px 0; display: flex; justify-content: space-between; align-items: center; gap: 14px;
+    }
+    .file-chip {
+      min-width: 0; display: flex; align-items: center; gap: 10px; color: var(--soft); font-size: .82rem;
+    }
+    .file-icon {
+      width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+      color: var(--mint); background: rgba(124,247,212,.08); flex: 0 0 auto;
+    }
+    .file-icon svg { width: 18px; }
+    #fileName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .data-quality { display: flex; align-items: center; gap: 7px; color: #adbad6; font-size: .76rem; }
+    .data-quality span { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); }
+    .spectrum-wrap { padding: 18px; }
+    .chart-box {
+      border: 1px solid rgba(173,190,227,.13);
+      border-radius: 17px;
+      background:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
+        #0c1121;
+      background-size: 42px 42px;
+      position: relative; overflow: hidden;
+    }
+    canvas { display: block; width: 100%; height: 330px; }
+    .chart-legend {
+      position: absolute; top: 13px; right: 14px;
+      display: flex; gap: 13px; font-size: .7rem; color: var(--muted);
+      padding: 7px 9px; border-radius: 9px; background: rgba(8,11,22,.72); backdrop-filter: blur(8px);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-line { width: 16px; height: 2px; background: var(--mint); }
+    .legend-line.ref { background: var(--violet); }
+    .axis-note { position: absolute; left: 16px; bottom: 10px; color: #65718e; font-size: .68rem; }
+    .spectrum-tabs {
+      padding: 0 18px 18px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    }
+    .tab {
+      border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px;
+      background: rgba(255,255,255,.025); color: var(--muted); cursor: pointer;
+      font-size: .8rem; font-weight: 720;
+    }
+    .tab.active { color: #06130f; background: var(--mint); border-color: transparent; }
+    .evidence-strip {
+      border-top: 1px solid var(--line); padding: 16px 18px 19px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    }
+    .evidence-card { padding: 13px; border-radius: 13px; background: rgba(255,255,255,.033); }
+    .evidence-card span { display: block; color: var(--muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
+    .evidence-card strong { display: block; margin-top: 5px; font-size: .88rem; }
+    .compound-panel { position: sticky; top: 14px; }
+    .structure-stage {
+      margin: 4px 14px 14px;
+      min-height: 245px; display: grid; place-items: center; position: relative;
+      border-radius: 17px;
+      background: radial-gradient(circle at center, rgba(131,167,255,.12), transparent 65%), #eef2ff;
+      overflow: hidden;
+    }
+    .structure-stage img { width: 78%; max-height: 220px; object-fit: contain; mix-blend-mode: multiply; }
+    .structure-stage::after {
+      content: "2D structure · PubChem PUG REST";
+      position: absolute; bottom: 9px; left: 12px; color: #59627c; font-size: .64rem;
+    }
+    .compound-copy { padding: 0 17px 16px; }
+    .compound-copy h2 { margin: 0; font-size: 1.5rem; letter-spacing: -.035em; }
+    .iupac { min-height: 38px; margin: 5px 0 13px; color: var(--muted); font-size: .76rem; }
+    .property-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .property {
+      padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.022);
+    }
+    .property span { display: block; color: var(--muted); font-size: .66rem; }
+    .property strong { font-size: .82rem; word-break: break-word; }
+    .functional-groups { display: flex; flex-wrap: wrap; gap: 6px; margin: 13px 0 2px; }
+    .functional-groups span { padding: 6px 8px; border-radius: 8px; background: rgba(169,148,255,.10); color: #d8ceff; font-size: .7rem; }
+    .source-stack { padding: 0 14px 14px; display: grid; gap: 7px; }
+    .source-link {
+      min-height: 40px; padding: 0 12px; justify-content: space-between;
+      border: 1px solid var(--line); background: rgba(255,255,255,.025); color: var(--soft);
+      font-size: .78rem;
+    }
+    .source-link svg { width: 15px; color: var(--muted); }
+    .explain-panel {
+      width: min(1400px, calc(100% - 40px));
+      margin: 16px auto 0;
+      display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px;
+    }
+    .reasoning { padding: 20px; }
+    .reasoning h3, .resources h3 { margin: 0 0 5px; font-size: 1.05rem; }
+    .reasoning > p, .resources > p { margin: 0 0 17px; color: var(--muted); font-size: .85rem; }
+    .evidence-chain { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .chain-step { padding: 13px; border: 1px solid var(--line); border-radius: 13px; }
+    .step-num {
+      display: grid; place-items: center; width: 23px; height: 23px;
+      border-radius: 7px; margin-bottom: 12px; background: rgba(124,247,212,.10); color: var(--mint);
+      font-size: .69rem; font-weight: 800;
+    }
+    .chain-step strong { display: block; font-size: .79rem; }
+    .chain-step small { color: var(--muted); font-size: .7rem; }
+    .resources { padding: 20px; }
+    .resource-row {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+      padding: 10px 0; border-top: 1px solid var(--line); text-decoration: none;
+    }
+    .resource-row:first-of-type { border-top: 0; }
+    .resource-badge {
+      width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px;
+      background: rgba(131,167,255,.10); color: var(--blue); font-size: .65rem; font-weight: 900;
+    }
+    .resource-row strong { display: block; font-size: .78rem; }
+    .resource-row small { display: block; color: var(--muted); font-size: .68rem; }
+    .resource-row > span:last-child { color: var(--muted); }
+    .notice {
+      width: min(1400px, calc(100% - 40px));
+      margin: 16px auto 0;
+      border: 1px solid rgba(255,202,123,.24);
+      border-radius: 14px; padding: 13px 15px;
+      color: #c8b997; background: rgba(255,202,123,.055);
+      font-size: .76rem;
+    }
+    .toast {
+      position: fixed; left: 50%; bottom: 24px; z-index: 10;
+      transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+      max-width: min(480px, calc(100% - 32px)); padding: 12px 15px;
+      border: 1px solid var(--line); border-radius: 12px; color: var(--soft);
+      background: #171e34; box-shadow: var(--shadow); transition: .25s ease; font-size: .84rem;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .loader {
+      position: fixed; inset: 0; z-index: 20; display: none; place-items: center;
+      background: rgba(8,11,22,.88); backdrop-filter: blur(12px);
+    }
+    .loader.show { display: grid; }
+    .loader-card { width: min(390px, calc(100% - 38px)); text-align: center; }
+    .loader-spectrum { height: 60px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .loader-spectrum span { width: 4px; border-radius: 4px; background: var(--mint); animation: wave .75s ease-in-out infinite alternate; }
+    .loader-spectrum span:nth-child(2n) { animation-delay: -.4s; }
+    .loader-spectrum span:nth-child(3n) { animation-delay: -.2s; }
+    @keyframes wave { from { height: 9px; opacity: .45; } to { height: 52px; opacity: 1; } }
+    .loader h2 { margin: 13px 0 4px; }
+    .loader p { margin: 0; color: var(--muted); }
+    @media (max-width: 1120px) {
+      .dashboard { grid-template-columns: 215px minmax(0,1fr); }
+      .compound-panel { grid-column: 1 / -1; position: static; display: grid; grid-template-columns: 280px 1fr 1fr; align-items: center; }
+      .structure-stage { min-height: 210px; }
+      .explain-panel { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      .topbar { width: min(100% - 26px, 1400px); }
+      .topnav .nav-link { display: none; }
+      .status-pill { font-size: .7rem; }
+      .landing { padding-inline: 14px; }
+      .hero h1 { font-size: clamp(3.45rem, 18vw, 6rem); }
+      .search-rack { grid-template-columns: 1fr 52px; }
+      .primary-btn { display: none; }
+      .upload-btn { padding: 0; }
+      .upload-btn span { display: none; }
+      .workspace-head, .dashboard, .explain-panel, .notice { width: calc(100% - 24px); }
+      .workspace-head { align-items: start; flex-direction: column; }
+      .dashboard { grid-template-columns: 1fr; }
+      .candidate-panel { order: 2; }
+      .analysis-panel { order: 1; }
+      .compound-panel { order: 3; grid-column: auto; display: block; }
+      canvas { height: 260px; }
+      .spectrum-tabs { grid-template-columns: repeat(2, 1fr); }
+      .evidence-strip { grid-template-columns: 1fr; }
+      .evidence-chain { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 430px) {
+      .brand span:last-child { display: none; }
+      .hero h1 { font-size: 3.35rem; }
+      .hero-copy { font-size: .94rem; }
+      .search-rack { grid-template-columns: 1fr; }
+      .upload-btn { padding: 0 16px; }
+      .upload-btn span { display: inline; }
+      .workspace-head h1 { font-size: 1.65rem; }
+      .head-actions { width: 100%; }
+      .head-actions .small-btn { flex: 1; }
+      .evidence-chain { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" id="brandHome" aria-label="SpectraTrace home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none"><path d="M2 19h5l3-11 5 19 4-15 4 7h7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span>SpectraTrace</span>
+      </a>
+      <nav class="topnav" aria-label="Primary navigation">
+        <a class="nav-link" href="#resources">Open resources</a>
+        <a class="nav-link" href="https://iupac.org/what-we-do/digital-standards/" target="_blank" rel="noreferrer">Data standards</a>
+        <span class="status-pill">Teaching library online</span>
+      </nav>
+    </header>
+
+    <main>
+      <section class="landing" id="landing" aria-labelledby="heroTitle">
+        <div class="hero">
+          <div class="eyebrow">Spectrum-to-structure learning portal</div>
+          <h1 id="heroTitle">Spectra<br>Trace</h1>
+          <p class="hero-copy">Start with an FTIR trace. Compare its strongest absorptions, rank plausible compounds, then connect the result to NMR, UV and a verified 2D structure.</p>
+          <form class="search-rack" id="searchForm">
+            <label class="search-field">
+              <span class="sr-only">Search teaching library</span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.8" stroke="currentColor" stroke-width="1.8"/><path d="m16.2 16.2 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <input id="compoundSearch" autocomplete="off" placeholder="Search a compound, formula or PubChem CID">
+            </label>
+            <button class="primary-btn" type="submit">Explore</button>
+            <button class="upload-btn" type="button" id="uploadButton">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Upload FTIR</span>
+            </button>
+            <input class="sr-only" id="fileInput" type="file" accept=".csv,.txt,.dx,.jdx,text/plain,text/csv">
+          </form>
+          <div class="hero-foot">
+            <span>No spectrum ready?</span>
+            <button id="demoButton" type="button">Run the acetaminophen demo</button>
+            <span>or</span>
+            <button id="downloadDemo" type="button">download sample CSV</button>
+          </div>
+          <div class="format-chips" aria-label="Supported formats">
+            <span>CSV / TXT peak pairs</span><span>JCAMP-DX XY data</span><span>Transmittance or absorbance</span><span>Runs locally in your browser</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace" id="workspace" aria-label="Spectrum analysis workspace">
+        <div class="workspace-head">
+          <div>
+            <h1>Evidence workspace</h1>
+            <p id="workspaceSubtitle">Your uploaded FTIR trace compared with the teaching library.</p>
+          </div>
+          <div class="head-actions">
+            <button class="small-btn" type="button" id="newAnalysis">New analysis</button>
+            <button class="small-btn accent" type="button" id="replaceFile">Replace data</button>
+          </div>
+        </div>
+
+        <div class="dashboard">
+          <aside class="panel candidate-panel" aria-label="Ranked candidate compounds">
+            <div class="panel-label"><span>Candidate match</span><span id="candidateCount">5</span></div>
+            <div class="candidate-list" id="candidateList"></div>
+            <div class="confidence">
+              <div class="confidence-head"><span>Top-match confidence</span><strong id="confidenceText">—</strong></div>
+              <div class="meter" aria-hidden="true"><span id="confidenceBar"></span></div>
+            </div>
+          </aside>
+
+          <section class="panel analysis-panel" aria-label="Spectral comparison">
+            <div class="analysis-top">
+              <div class="file-chip">
+                <span class="file-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M7 3.5h7l4 4V20H7V3.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M14 3.5V8h4M9.5 14h6M9.5 17h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                </span>
+                <span id="fileName">acetaminophen_demo.csv</span>
+              </div>
+              <span class="data-quality"><span></span><b id="pointCount">701</b> points parsed</span>
+            </div>
+            <div class="spectrum-wrap">
+              <div class="chart-box">
+                <canvas id="spectrumCanvas" width="900" height="330" aria-label="Interactive spectrum comparison chart"></canvas>
+                <div class="chart-legend">
+                  <span class="legend-item"><i class="legend-line"></i><span id="observedLegend">Observed</span></span>
+                  <span class="legend-item"><i class="legend-line ref"></i>Reference</span>
+                </div>
+                <div class="axis-note" id="axisNote">Wavenumber (cm⁻¹) · high to low</div>
+              </div>
+            </div>
+            <div class="spectrum-tabs" role="tablist" aria-label="Spectrum type">
+              <button class="tab active" type="button" data-spectrum="ir" role="tab" aria-selected="true">FTIR</button>
+              <button class="tab" type="button" data-spectrum="h1" role="tab" aria-selected="false">¹H NMR</button>
+              <button class="tab" type="button" data-spectrum="c13" role="tab" aria-selected="false">¹³C NMR</button>
+              <button class="tab" type="button" data-spectrum="uv" role="tab" aria-selected="false">UV–Vis</button>
+            </div>
+            <div class="evidence-strip">
+              <div class="evidence-card"><span id="evidenceLabel1">Strongest observed bands</span><strong id="evidenceValue1">—</strong></div>
+              <div class="evidence-card"><span id="evidenceLabel2">Reference markers</span><strong id="evidenceValue2">—</strong></div>
+              <div class="evidence-card"><span id="evidenceLabel3">Interpretation</span><strong id="evidenceValue3">—</strong></div>
+            </div>
+          </section>
+
+          <aside class="panel compound-panel" aria-label="Selected compound profile">
+            <div class="panel-label"><span>Proposed identity</span><span id="cidLabel">CID —</span></div>
+            <div class="structure-stage">
+              <img id="structureImage" alt="2D molecular structure" crossorigin="anonymous">
+            </div>
+            <div class="compound-copy">
+              <h2 id="compoundName">—</h2>
+              <p class="iupac" id="iupacName">Select a candidate to inspect its structure and linked evidence.</p>
+              <div class="property-grid">
+                <div class="property"><span>Formula</span><strong id="formula">—</strong></div>
+                <div class="property"><span>Molar mass</span><strong id="mass">—</strong></div>
+                <div class="property"><span>CAS RN</span><strong id="cas">—</strong></div>
+                <div class="property"><span>InChIKey</span><strong id="inchikey">—</strong></div>
+              </div>
+              <div class="functional-groups" id="functionalGroups"></div>
+            </div>
+            <div class="source-stack">
+              <a class="source-link" id="pubchemLink" target="_blank" rel="noreferrer"><span>PubChem compound record</span><svg viewBox="0 0 24 24" fill="none"><path d="M10 6H6v12h12v-4M13 5h6v6M19 5l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+              <a class="source-link" id="nistLink" target="_blank" rel="noreferrer"><span>NIST Chemistry WebBook</span><svg viewBox="0 0 24 24" fill="none"><path d="M10 6H6v12h12v-4M13 5h6v6M19 5l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+              <a class="source-link" id="sdbsLink" target="_blank" rel="noreferrer"><span>AIST SDBS spectra</span><svg viewBox="0 0 24 24" fill="none"><path d="M10 6H6v12h12v-4M13 5h6v6M19 5l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+          </aside>
+        </div>
+
+        <div class="explain-panel">
+          <section class="panel reasoning">
+            <h3>How the evidence is linked</h3>
+            <p id="reasoningSummary">The match is a starting hypothesis. Confirm it by checking independent signals and the sample context.</p>
+            <div class="evidence-chain">
+              <div class="chain-step"><span class="step-num">01</span><strong>Parse</strong><small>Read numeric XY pairs and spectral metadata.</small></div>
+              <div class="chain-step"><span class="step-num">02</span><strong>Detect</strong><small>Locate separated maxima or minima in the trace.</small></div>
+              <div class="chain-step"><span class="step-num">03</span><strong>Rank</strong><small>Score peak proximity against teaching references.</small></div>
+              <div class="chain-step"><span class="step-num">04</span><strong>Corroborate</strong><small>Compare NMR, UV, structure and sample history.</small></div>
+            </div>
+          </section>
+          <section class="panel resources" id="resources">
+            <h3>Open data & methods</h3>
+            <p>Primary databases and publications used to make the workflow traceable.</p>
+            <a class="resource-row" href="https://pubchem.ncbi.nlm.nih.gov/docs/publications" target="_blank" rel="noreferrer"><span class="resource-badge">PC</span><span><strong>PubChem publications & access</strong><small>NCBI chemical records, identifiers and programmatic access</small></span><span>↗</span></a>
+            <a class="resource-row" href="https://webbook.nist.gov/chemistry/" target="_blank" rel="noreferrer"><span class="resource-badge">NI</span><span><strong>NIST Chemistry WebBook</strong><small>Evaluated chemical and spectroscopic data; JCAMP downloads where available</small></span><span>↗</span></a>
+            <a class="resource-row" href="https://sdbs.db.aist.go.jp/Htmls/Introduction_eng.html" target="_blank" rel="noreferrer"><span class="resource-badge">SD</span><span><strong>AIST SDBS</strong><small>Integrated FTIR, ¹H NMR and ¹³C NMR collections</small></span><span>↗</span></a>
+            <a class="resource-row" href="https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/10.1002/mrc.5418" target="_blank" rel="noreferrer"><span class="resource-badge">NM</span><span><strong>Twenty years of nmrshiftdb2</strong><small>Open-access research article on NMR spectra, shifts and raw data</small></span><span>↗</span></a>
+            <a class="resource-row" href="https://publications.iupac.org/pac/63/12/1781/index.html" target="_blank" rel="noreferrer"><span class="resource-badge">DX</span><span><strong>IUPAC JCAMP-DX recommendation</strong><small>Standardized exchange of machine-readable spectral data</small></span><span>↗</span></a>
+          </section>
+        </div>
+        <div class="notice"><strong>Educational use:</strong> SpectraTrace ranks similarities; it does not prove identity or purity. Solvent, phase, concentration, instrument settings, baseline correction and sample preparation can shift or reshape signals. Confirm with the original database record and your instructor or laboratory workflow.</div>
+      </section>
+    </main>
+  </div>
+
+  <div class="loader" id="loader" role="status" aria-live="polite">
+    <div class="loader-card">
+      <div class="loader-spectrum" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <h2>Tracing spectral evidence</h2>
+      <p id="loaderText">Parsing points and locating characteristic bands…</p>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var compounds = [
+        {
+          id: "acetaminophen", name: "Acetaminophen", aliases: ["paracetamol", "tylenol"], cid: 1983,
+          formula: "C₈H₉NO₂", mass: "151.16 g·mol⁻¹", cas: "103-90-2", sdbs: "3290",
+          iupac: "N-(4-hydroxyphenyl)acetamide", inchikey: "RZVAJINKPMORJF-UHFFFAOYSA-N",
+          groups: ["phenol", "secondary amide", "aromatic ring"],
+          ir: [3320, 3160, 1655, 1610, 1562, 1510, 1325, 1255, 1170, 837],
+          h1: [9.7, 9.3, 7.12, 6.68, 1.98], c13: [168.3, 149.5, 132.3, 121.2, 115.3, 24.2], uv: [243, 280],
+          nist: "https://webbook.nist.gov/cgi/cbook.cgi?ID=C103902&Mask=2781&Units=SI",
+          interpretation: "Amide C=O near 1655 cm⁻¹, phenolic O–H/N–H region and para-substituted aromatic bands."
+        },
+        {
+          id: "aspirin", name: "Aspirin", aliases: ["acetylsalicylic acid"], cid: 2244,
+          formula: "C₉H₈O₄", mass: "180.16 g·mol⁻¹", cas: "50-78-2", sdbs: "532",
+          iupac: "2-acetyloxybenzoic acid", inchikey: "BSYNRYMUTXBXSQ-UHFFFAOYSA-N",
+          groups: ["carboxylic acid", "ester", "aromatic ring"],
+          ir: [3000, 1755, 1690, 1605, 1455, 1305, 1220, 1090, 760],
+          h1: [11.4, 8.12, 7.62, 7.36, 7.15, 2.33], c13: [170.2, 169.7, 151.2, 134.8, 132.6, 126.2, 124.1, 122.3, 21.1], uv: [229, 276],
+          nist: "https://webbook.nist.gov/cgi/cbook.cgi?ID=C50782&Units=SI",
+          interpretation: "Two carbonyl environments are expected: ester near 1755 cm⁻¹ and carboxylic acid near 1690 cm⁻¹."
+        },
+        {
+          id: "caffeine", name: "Caffeine", aliases: ["1,3,7-trimethylxanthine"], cid: 2519,
+          formula: "C₈H₁₀N₄O₂", mass: "194.19 g·mol⁻¹", cas: "58-08-2", sdbs: "1898",
+          iupac: "1,3,7-trimethylpurine-2,6-dione", inchikey: "RYYVLZVUVIJVGH-UHFFFAOYSA-N",
+          groups: ["imide carbonyls", "heteroaromatic", "N-methyl"],
+          ir: [3110, 2955, 1698, 1655, 1545, 1480, 1360, 1240, 745],
+          h1: [7.9, 3.91, 3.52, 3.34], c13: [155.5, 151.7, 148.8, 141.5, 107.5, 33.6, 29.8, 27.9], uv: [273],
+          nist: "https://webbook.nist.gov/cgi/cbook.cgi?ID=C58082&Units=SI",
+          interpretation: "Paired conjugated carbonyl absorptions and several N-methyl environments support a xanthine framework."
+        },
+        {
+          id: "vanillin", name: "Vanillin", aliases: ["4-hydroxy-3-methoxybenzaldehyde"], cid: 1183,
+          formula: "C₈H₈O₃", mass: "152.15 g·mol⁻¹", cas: "121-33-5", sdbs: "726",
+          iupac: "4-hydroxy-3-methoxybenzaldehyde", inchikey: "MWOOGOJBHIARFG-UHFFFAOYSA-N",
+          groups: ["aldehyde", "phenol", "aryl ether"],
+          ir: [3184, 3021, 2946, 2846, 2742, 1666, 1590, 1511, 1465, 1266, 1155, 1031, 860],
+          h1: [9.82, 9.72, 7.42, 7.35, 6.96, 3.91], c13: [191.0, 152.0, 147.3, 130.1, 127.2, 114.8, 109.0, 56.0], uv: [231, 280, 310],
+          nist: "https://webbook.nist.gov/cgi/cbook.cgi?ID=C121335&Units=SI",
+          interpretation: "Conjugated aldehyde C=O near 1666 cm⁻¹, aldehydic C–H and phenolic/aryl-ether bands form a distinctive pattern."
+        },
+        {
+          id: "benzoic-acid", name: "Benzoic acid", aliases: ["benzenecarboxylic acid"], cid: 243,
+          formula: "C₇H₆O₂", mass: "122.12 g·mol⁻¹", cas: "65-85-0", sdbs: "673",
+          iupac: "benzoic acid", inchikey: "WPYMKLBDIGXBTP-UHFFFAOYSA-N",
+          groups: ["carboxylic acid", "aromatic ring"],
+          ir: [3070, 2900, 1685, 1600, 1450, 1290, 930, 710],
+          h1: [12.9, 8.11, 7.62, 7.49], c13: [172.1, 133.8, 130.4, 129.4, 128.5], uv: [228, 273],
+          nist: "https://webbook.nist.gov/cgi/cbook.cgi?ID=C65850&Units=SI",
+          interpretation: "A broad acid O–H envelope with a conjugated carbonyl and monosubstituted benzene out-of-plane bands."
+        }
+      ];
+
+      var state = {
+        points: [],
+        observedPeaks: [],
+        rankings: [],
+        selected: compounds[0],
+        spectrum: "ir",
+        sourceName: "acetaminophen_demo.csv",
+        directLookup: false
+      };
+
+      var $ = function (id) { return document.getElementById(id); };
+      var canvas = $("spectrumCanvas");
+      var ctx = canvas.getContext("2d");
+      var resizeTimer;
+      var toastTimer;
+
+      function makeDemo(compound) {
+        var data = [];
+        var x;
+        for (x = 4000; x >= 500; x -= 5) {
+          var y = 94 + 1.2 * Math.sin(x / 165) + 0.7 * Math.sin(x / 51);
+          compound.ir.forEach(function (peak, index) {
+            var width = peak > 2500 ? 72 : peak > 1500 ? 31 : 20;
+            var depth = 15 + (index % 4) * 7;
+            y -= depth * Math.exp(-Math.pow(x - peak, 2) / (2 * width * width));
+          });
+          data.push({ x: x, y: Math.max(3, y) });
+        }
+        return data;
+      }
+
+      function normalize(text) {
+        return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      }
+
+      function findCompound(query) {
+        var q = normalize(query);
+        if (!q) return null;
+        return compounds.find(function (c) {
+          return normalize(c.name).indexOf(q) > -1 ||
+            normalize(c.formula).indexOf(q.replace(/\s/g, "")) > -1 ||
+            String(c.cid) === q ||
+            c.aliases.some(function (a) { return normalize(a).indexOf(q) > -1; });
+        }) || null;
+      }
+
+      function parseSpectrum(text) {
+        var lines = text.split(/\r?\n/);
+        var points = [];
+        var absorbance = /absorbance/i.test(text);
+        lines.forEach(function (line) {
+          if (!line.trim() || /^##/.test(line.trim())) return;
+          var nums = line.trim().replace(/[;,]/g, " ").split(/\s+/).map(Number).filter(Number.isFinite);
+          if (nums.length >= 2) points.push({ x: nums[0], y: nums[1] });
+        });
+        if (points.length < 8) throw new Error("Not enough numeric XY pairs were found.");
+        points = points.filter(function (p) { return p.x >= 350 && p.x <= 5000; });
+        points.sort(function (a, b) { return b.x - a.x; });
+        return { points: points, absorbance: absorbance };
+      }
+
+      function detectPeaks(points, absorbance) {
+        if (points.length < 8) return [];
+        var candidates = [];
+        var ys = points.map(function (p) { return p.y; });
+        var minY = Math.min.apply(null, ys);
+        var maxY = Math.max.apply(null, ys);
+        var span = Math.max(maxY - minY, .001);
+        var windowSize = Math.max(2, Math.round(points.length / 250));
+        var i;
+        for (i = windowSize; i < points.length - windowSize; i++) {
+          var left = points[i - windowSize].y;
+          var right = points[i + windowSize].y;
+          var current = points[i].y;
+          var prominence = absorbance ? current - (left + right) / 2 : (left + right) / 2 - current;
+          if (prominence > span * .006) {
+            candidates.push({ x: points[i].x, y: current, strength: Math.abs(prominence) });
+          }
+        }
+        if (candidates.length < 5) {
+          points.forEach(function (p) {
+            var strength = absorbance ? (p.y - minY) / span : (maxY - p.y) / span;
+            if (strength > .30) candidates.push({ x: p.x, y: p.y, strength: strength });
+          });
+        }
+        candidates.sort(function (a, b) { return b.strength - a.strength; });
+        var selected = [];
+        candidates.forEach(function (p) {
+          if (selected.length >= 16) return;
+          if (!selected.some(function (s) { return Math.abs(s.x - p.x) < 28; })) selected.push(p);
+        });
+        return selected.sort(function (a, b) { return b.x - a.x; });
+      }
+
+      function rankCompounds(peaks, forceCompound) {
+        if (forceCompound) {
+          return compounds.map(function (c) {
+            return { compound: c, score: c.id === forceCompound.id ? 100 : Math.max(46, 78 - Math.abs(compounds.indexOf(c) - compounds.indexOf(forceCompound)) * 7), matches: c.ir.slice(0, 6) };
+          }).sort(function (a, b) { return b.score - a.score; });
+        }
+        return compounds.map(function (c) {
+          var hits = [];
+          var total = 0;
+          c.ir.forEach(function (ref) {
+            var nearest = peaks.reduce(function (best, p) {
+              var d = Math.abs(p.x - ref);
+              return d < best.distance ? { distance: d, peak: p.x } : best;
+            }, { distance: Infinity, peak: null });
+            if (nearest.distance <= 34) {
+              hits.push(nearest.peak);
+              total += 1 - nearest.distance / 52;
+            }
+          });
+          var coverage = total / Math.max(c.ir.length, 1);
+          var selectivity = hits.length / Math.max(peaks.length, 5);
+          var score = Math.round(38 + coverage * 47 + Math.min(selectivity, .75) * 20);
+          return { compound: c, score: Math.min(96, score), matches: hits };
+        }).sort(function (a, b) { return b.score - a.score; });
+      }
+
+      function showLoader(message) {
+        $("loaderText").textContent = message;
+        $("loader").classList.add("show");
+      }
+
+      function hideLoader() { $("loader").classList.remove("show"); }
+
+      function notify(message) {
+        clearTimeout(toastTimer);
+        $("toast").textContent = message;
+        $("toast").classList.add("show");
+        toastTimer = setTimeout(function () { $("toast").classList.remove("show"); }, 3300);
+      }
+
+      function launchWorkspace(points, sourceName, forceCompound, absorbance) {
+        showLoader("Parsing points and locating characteristic bands…");
+        setTimeout(function () {
+          state.points = points;
+          state.sourceName = sourceName;
+          state.directLookup = !!forceCompound;
+          state.observedPeaks = detectPeaks(points, !!absorbance);
+          state.rankings = rankCompounds(state.observedPeaks, forceCompound);
+          state.selected = state.rankings[0].compound;
+          state.spectrum = "ir";
+          $("landing").classList.add("hidden");
+          $("workspace").classList.add("active");
+          $("fileName").textContent = sourceName;
+          $("pointCount").textContent = points.length.toLocaleString();
+          $("workspaceSubtitle").textContent = forceCompound ?
+            "Library profile with representative reference markers and external source links." :
+            "Your uploaded FTIR trace compared with the curated teaching library.";
+          renderAll();
+          hideLoader();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }, 740);
+      }
+
+      function renderCandidates() {
+        var list = $("candidateList");
+        list.innerHTML = "";
+        state.rankings.forEach(function (entry, index) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "candidate" + (entry.compound.id === state.selected.id ? " active" : "");
+          button.setAttribute("aria-label", "Select " + entry.compound.name + ", " + entry.score + " percent match");
+          button.innerHTML =
+            '<span class="rank">' + String(index + 1).padStart(2, "0") + '</span>' +
+            '<span><strong>' + entry.compound.name + '</strong><small>' + entry.compound.formula + ' · ' + entry.matches.length + ' matched bands</small></span>' +
+            '<span class="score">' + entry.score + '%</span>';
+          button.addEventListener("click", function () {
+            state.selected = entry.compound;
+            renderAll();
+          });
+          list.appendChild(button);
+        });
+        var top = state.rankings.find(function (r) { return r.compound.id === state.selected.id; }) || state.rankings[0];
+        $("confidenceText").textContent = top.score + "%";
+        $("confidenceBar").style.width = top.score + "%";
+        $("candidateCount").textContent = state.rankings.length;
+      }
+
+      function updateCompound() {
+        var c = state.selected;
+        $("cidLabel").textContent = "CID " + c.cid;
+        $("compoundName").textContent = c.name;
+        $("iupacName").textContent = c.iupac;
+        $("formula").textContent = c.formula;
+        $("mass").textContent = c.mass;
+        $("cas").textContent = c.cas;
+        $("inchikey").textContent = c.inchikey.split("-")[0] + "…";
+        $("inchikey").title = c.inchikey;
+        $("structureImage").src = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/" + c.cid + "/PNG?record_type=2d&image_size=large";
+        $("structureImage").alt = "2D structure of " + c.name + " from PubChem";
+        $("pubchemLink").href = "https://pubchem.ncbi.nlm.nih.gov/compound/" + c.cid;
+        $("nistLink").href = c.nist;
+        $("sdbsLink").href = "https://sdbs.db.aist.go.jp/CompoundLanding.aspx?sdbsno=" + c.sdbs;
+        $("functionalGroups").innerHTML = "";
+        c.groups.forEach(function (group) {
+          var span = document.createElement("span");
+          span.textContent = group;
+          $("functionalGroups").appendChild(span);
+        });
+        $("reasoningSummary").textContent = c.interpretation + " Treat this as a hypothesis until NMR, UV and sample history agree.";
+      }
+
+      function setCanvasSize() {
+        var rect = canvas.getBoundingClientRect();
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(320, Math.round(rect.width * dpr));
+        canvas.height = Math.round(rect.height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { width: rect.width, height: rect.height };
+      }
+
+      function drawAxes(width, height, xLabels, yLabel) {
+        var left = 49, right = 18, top = 30, bottom = 38;
+        ctx.strokeStyle = "rgba(173,190,227,.20)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(left, top); ctx.lineTo(left, height - bottom); ctx.lineTo(width - right, height - bottom);
+        ctx.stroke();
+        ctx.fillStyle = "#74809e";
+        ctx.font = "11px Inter, system-ui, sans-serif";
+        ctx.textAlign = "center";
+        xLabels.forEach(function (label, i) {
+          var x = left + (width - left - right) * i / (xLabels.length - 1);
+          ctx.fillText(label, x, height - 16);
+          ctx.strokeStyle = "rgba(173,190,227,.07)";
+          ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, height - bottom); ctx.stroke();
+        });
+        ctx.save();
+        ctx.translate(15, height / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(yLabel, 0, 0);
+        ctx.restore();
+        return { left: left, right: right, top: top, bottom: bottom };
+      }
+
+      function drawIR() {
+        var size = setCanvasSize();
+        var width = size.width, height = size.height;
+        ctx.clearRect(0, 0, width, height);
+        var box = drawAxes(width, height, ["4000", "3500", "3000", "2500", "2000", "1500", "1000", "500"], "Relative response");
+        var minX = 500, maxX = 4000;
+        var ys = state.points.map(function (p) { return p.y; });
+        var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys), spanY = Math.max(maxY - minY, .001);
+        var plotW = width - box.left - box.right, plotH = height - box.top - box.bottom;
+        var mapX = function (x) { return box.left + (maxX - x) / (maxX - minX) * plotW; };
+        var mapY = function (y) { return box.top + (maxY - y) / spanY * plotH * .86 + plotH * .06; };
+        var visible = state.points.filter(function (p) { return p.x >= minX && p.x <= maxX; });
+        ctx.strokeStyle = "#7cf7d4";
+        ctx.lineWidth = 1.8;
+        ctx.shadowColor = "rgba(124,247,212,.28)";
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        visible.forEach(function (p, i) {
+          var x = mapX(p.x), y = mapY(p.y);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(169,148,255,.75)";
+        ctx.lineWidth = 1.2;
+        state.selected.ir.forEach(function (peak) {
+          var x = mapX(peak);
+          ctx.beginPath(); ctx.moveTo(x, height - box.bottom); ctx.lineTo(x, height - box.bottom - 28); ctx.stroke();
+        });
+        ctx.fillStyle = "#b7a7ff";
+        ctx.textAlign = "center";
+        ctx.font = "9px Inter, system-ui, sans-serif";
+        state.selected.ir.slice(0, 7).forEach(function (peak, index) {
+          var x = mapX(peak);
+          ctx.fillText(String(peak), x, height - box.bottom - 34 - (index % 2) * 12);
+        });
+      }
+
+      function drawNMR(type) {
+        var size = setCanvasSize();
+        var width = size.width, height = size.height;
+        ctx.clearRect(0, 0, width, height);
+        var isH = type === "h1";
+        var labels = isH ? ["12", "10", "8", "6", "4", "2", "0"] : ["200", "160", "120", "80", "40", "0"];
+        var box = drawAxes(width, height, labels, "Relative intensity");
+        var max = isH ? 12 : 200;
+        var data = isH ? state.selected.h1 : state.selected.c13;
+        var plotW = width - box.left - box.right, base = height - box.bottom;
+        var mapX = function (x) { return box.left + (max - x) / max * plotW; };
+        ctx.strokeStyle = "#7cf7d4"; ctx.lineWidth = 2;
+        data.forEach(function (peak, i) {
+          var x = mapX(peak);
+          var top = base - 45 - (i % 4) * 29;
+          ctx.beginPath(); ctx.moveTo(x, base); ctx.lineTo(x, top); ctx.stroke();
+          ctx.fillStyle = "#aeb9d6"; ctx.font = "10px Inter, system-ui, sans-serif"; ctx.textAlign = "center";
+          ctx.fillText(peak.toFixed(isH ? 2 : 1), x, top - 7);
+        });
+      }
+
+      function drawUV() {
+        var size = setCanvasSize();
+        var width = size.width, height = size.height;
+        ctx.clearRect(0, 0, width, height);
+        var box = drawAxes(width, height, ["200", "240", "280", "320", "360", "400"], "Relative absorbance");
+        var min = 200, max = 400, plotW = width - box.left - box.right, plotH = height - box.top - box.bottom;
+        var mapX = function (x) { return box.left + (x - min) / (max - min) * plotW; };
+        var mapY = function (y) { return height - box.bottom - y * plotH * .78; };
+        ctx.strokeStyle = "#7cf7d4"; ctx.lineWidth = 2.2; ctx.shadowColor = "rgba(124,247,212,.28)"; ctx.shadowBlur = 8;
+        ctx.beginPath();
+        for (var nm = min; nm <= max; nm += 1) {
+          var val = .025;
+          state.selected.uv.forEach(function (peak, index) {
+            var widthPeak = 12 + index * 4;
+            val += (1 - index * .14) * Math.exp(-Math.pow(nm - peak, 2) / (2 * widthPeak * widthPeak));
+          });
+          if (nm === min) ctx.moveTo(mapX(nm), mapY(Math.min(val, 1))); else ctx.lineTo(mapX(nm), mapY(Math.min(val, 1)));
+        }
+        ctx.stroke(); ctx.shadowBlur = 0;
+        state.selected.uv.forEach(function (peak) {
+          var x = mapX(peak);
+          ctx.fillStyle = "#b7a7ff"; ctx.textAlign = "center"; ctx.font = "10px Inter, system-ui, sans-serif";
+          ctx.fillText(peak + " nm", x, box.top + 18);
+        });
+      }
+
+      function updateEvidence() {
+        var c = state.selected;
+        if (state.spectrum === "ir") {
+          $("evidenceLabel1").textContent = "Strongest observed bands";
+          $("evidenceValue1").textContent = state.observedPeaks.slice(0, 5).map(function (p) { return Math.round(p.x); }).join(", ") + " cm⁻¹";
+          $("evidenceLabel2").textContent = "Reference markers";
+          $("evidenceValue2").textContent = c.ir.slice(0, 6).join(", ") + " cm⁻¹";
+          $("evidenceLabel3").textContent = "Interpretation";
+          $("evidenceValue3").textContent = c.groups.join(" · ");
+          $("axisNote").textContent = "Wavenumber (cm⁻¹) · high to low";
+          $("observedLegend").textContent = "Observed";
+        } else if (state.spectrum === "h1") {
+          $("evidenceLabel1").textContent = "Representative δH";
+          $("evidenceValue1").textContent = c.h1.map(function (v) { return v.toFixed(2); }).join(", ") + " ppm";
+          $("evidenceLabel2").textContent = "Signal count";
+          $("evidenceValue2").textContent = c.h1.length + " teaching markers";
+          $("evidenceLabel3").textContent = "Use with";
+          $("evidenceValue3").textContent = "integrals · multiplicity · J values";
+          $("axisNote").textContent = "Chemical shift δ (ppm) · downfield to upfield";
+          $("observedLegend").textContent = "Reference sticks";
+        } else if (state.spectrum === "c13") {
+          $("evidenceLabel1").textContent = "Representative δC";
+          $("evidenceValue1").textContent = c.c13.slice(0, 7).map(function (v) { return v.toFixed(1); }).join(", ") + " ppm";
+          $("evidenceLabel2").textContent = "Distinct environments";
+          $("evidenceValue2").textContent = c.c13.length + " teaching markers";
+          $("evidenceLabel3").textContent = "Check";
+          $("evidenceValue3").textContent = "symmetry · solvent · DEPT/APT";
+          $("axisNote").textContent = "Chemical shift δ (ppm) · downfield to upfield";
+          $("observedLegend").textContent = "Reference sticks";
+        } else {
+          $("evidenceLabel1").textContent = "Representative λmax";
+          $("evidenceValue1").textContent = c.uv.join(", ") + " nm";
+          $("evidenceLabel2").textContent = "Chromophore";
+          $("evidenceValue2").textContent = c.groups.join(" · ");
+          $("evidenceLabel3").textContent = "Conditions matter";
+          $("evidenceValue3").textContent = "solvent · pH · concentration";
+          $("axisNote").textContent = "Wavelength (nm)";
+          $("observedLegend").textContent = "Teaching profile";
+        }
+      }
+
+      function drawCurrent() {
+        if (state.spectrum === "ir") drawIR();
+        else if (state.spectrum === "h1" || state.spectrum === "c13") drawNMR(state.spectrum);
+        else drawUV();
+      }
+
+      function renderAll() {
+        renderCandidates();
+        updateCompound();
+        updateEvidence();
+        document.querySelectorAll(".tab").forEach(function (tab) {
+          var active = tab.getAttribute("data-spectrum") === state.spectrum;
+          tab.classList.toggle("active", active);
+          tab.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        requestAnimationFrame(drawCurrent);
+      }
+
+      function openFileDialog() { $("fileInput").click(); }
+
+      function downloadDemo() {
+        var points = makeDemo(compounds[0]);
+        var csv = "wavenumber_cm-1,transmittance_percent\n" + points.map(function (p) { return p.x + "," + p.y.toFixed(3); }).join("\n");
+        var url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        var a = document.createElement("a");
+        a.href = url; a.download = "spectratrace_acetaminophen_demo.csv"; a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        notify("Sample FTIR CSV downloaded.");
+      }
+
+      $("uploadButton").addEventListener("click", openFileDialog);
+      $("replaceFile").addEventListener("click", openFileDialog);
+      $("fileInput").addEventListener("change", function (event) {
+        var file = event.target.files && event.target.files[0];
+        if (!file) return;
+        if (file.size > 6 * 1024 * 1024) {
+          notify("Please choose a text spectrum smaller than 6 MB.");
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var parsed = parseSpectrum(String(reader.result));
+            launchWorkspace(parsed.points, file.name, null, parsed.absorbance);
+          } catch (error) {
+            notify(error.message + " Use two numeric columns: wavenumber and intensity.");
+          }
+        };
+        reader.onerror = function () { notify("The file could not be read."); };
+        reader.readAsText(file);
+        event.target.value = "";
+      });
+
+      $("demoButton").addEventListener("click", function () {
+        launchWorkspace(makeDemo(compounds[0]), "acetaminophen_demo.csv", null, false);
+      });
+      $("downloadDemo").addEventListener("click", downloadDemo);
+
+      $("searchForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var match = findCompound($("compoundSearch").value);
+        if (!match) {
+          notify("Try acetaminophen, aspirin, caffeine, vanillin, benzoic acid, a formula, or a PubChem CID.");
+          return;
+        }
+        launchWorkspace(makeDemo(match), match.id + "_library_profile.csv", match, false);
+      });
+
+      document.querySelectorAll(".tab").forEach(function (tab) {
+        tab.addEventListener("click", function () {
+          state.spectrum = tab.getAttribute("data-spectrum");
+          renderAll();
+        });
+      });
+
+      $("newAnalysis").addEventListener("click", function () {
+        $("workspace").classList.remove("active");
+        $("landing").classList.remove("hidden");
+        $("compoundSearch").value = "";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      $("brandHome").addEventListener("click", function (event) {
+        event.preventDefault();
+        $("newAnalysis").click();
+      });
+
+      window.addEventListener("resize", function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () { if ($("workspace").classList.contains("active")) drawCurrent(); }, 120);
+      });
+
+      function registerWebMCP() {
+        if (!document.modelContext || !document.modelContext.registerTool) return;
+        var tools = [
+          {
+            name: "search_teaching_library",
+            title: "Search teaching library",
+            description: "Find a compound by name, formula, alias, or PubChem CID and open its linked spectral profile.",
+            inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false },
+            annotations: { readOnlyHint: true, untrustedContentHint: false },
+            execute: function (input) {
+              var match = findCompound(input && input.query);
+              if (!match) throw new Error("No matching compound in the teaching library.");
+              launchWorkspace(makeDemo(match), match.id + "_library_profile.csv", match, false);
+              return { compound: match.name, pubchemCid: match.cid, formula: match.formula };
+            }
+          },
+          {
+            name: "load_spectrum_demo",
+            title: "Load FTIR demonstration",
+            description: "Open the acetaminophen FTIR demonstration and show ranked candidate evidence.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            annotations: { readOnlyHint: false, untrustedContentHint: false },
+            execute: function () {
+              launchWorkspace(makeDemo(compounds[0]), "acetaminophen_demo.csv", null, false);
+              return { status: "loaded", points: 701, compoundHiddenAsUnknown: true };
+            }
+          }
+        ];
+        tools.forEach(function (tool) {
+          try { Promise.resolve(document.modelContext.registerTool(tool)).catch(function () {}); } catch (error) {}
+        });
+      }
+
+      registerWebMCP();
+    })();
+  </script>
+</body>
+</html>
