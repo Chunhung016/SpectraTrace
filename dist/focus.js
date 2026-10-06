@@ -16,7 +16,7 @@
   // What each technique window will offer for this compound, shown on its card.
   function availability(c,uploaded){
     const out={};const add=(t,v)=>{(out[t]||=new Set()).add(v)};
-    for(const e of c.external||[]){if(e.status==='quarantined')continue;add(e.technique,/^nist/.test(e.source_id)?'NIST':/^mslib-/.test(e.source_id)?'Library':e.source_id==='massbank'?'MassBank':e.source_id==='cod'?'COD calc.':e.source_id==='cif-upload'?'CIF calc.':'Ref')}
+    for(const e of c.external||[]){if(e.status==='quarantined')continue;add(e.technique,/^nist/.test(e.source_id)?'NIST':/^swgdrug/.test(e.source_id)?'SWGDRUG':/^mslib-/.test(e.source_id)?'Library':e.source_id==='massbank'?'MassBank':e.source_id==='cod'?'COD calc.':e.source_id==='cif-upload'?'CIF calc.':'Ref')}
     for(const z of c.coverage||[])add(z.technique,'Reviewed');
     for(const z of uploaded?.spectra||[])if(z.parsed)add(z.technique,'Yours');
     if(c.id&&c.logic&&c.logic.status!=='unresolved-structure')for(const t of ['ftir','h1','c13','uv'])add(t,'T');
@@ -174,7 +174,7 @@
         p.querySelector('.window-content').innerHTML='<div class="minimal-message">…</div>';const selection=++p.selectionRun;
         const record=await sourceRecord(option,technique);if(record?.none){if(p.isConnected)p.querySelector('.window-content').innerHTML='<div class="minimal-message">'+escape(record.reason)+'</div>';p.querySelector('.export-menu').hidden=true;p.exportData=null;return}
         if(!p.isConnected||selection!==p.selectionRun)return;const data=window.focusSpectraData.spectrumData(record,technique),status=p.querySelector('.spectrum-status');
-        status.textContent=option.simulation||option.theory?'T':option.calculated?'Calc.':option.status==='unreviewed'?(record.metadata?.calculated?'Calc. from CIF':/^nist/.test(record.source_id||'')?'NIST · unreviewed':'Unreviewed'):option.status==='uploaded'?'Uploaded':'';
+        status.textContent=option.simulation||option.theory?'T':option.calculated?'Calc.':option.status==='unreviewed'?(record.metadata?.calculated?'Calc. from CIF':/^nist/.test(record.source_id||'')?'NIST · unreviewed':/^swgdrug/.test(record.source_id||'')?'SWGDRUG · unreviewed':'Unreviewed'):option.status==='uploaded'?'Uploaded':'';
         status.title=option.simulation||option.theory?'T: rule-based spectrum. Not measured or a validated prediction.':option.calculated?'Calculated isotope cluster of the molecular ion; fragments are not predicted.':record.source_title||'Uploaded sample';status.toggleAttribute('data-theory',!!(option.simulation||option.theory));status.setAttribute('aria-label',option.simulation||option.theory?'T: rule-based spectrum, not measured':option.status);
         const source=p.querySelector('.source-link'),href=safeLink(record.source_url||record.metadata?.sourceUrl);source.hidden=!href;if(href)source.href=href;
         if(!data)p.querySelector('.window-content').innerHTML='<div class="minimal-message">No numerical spectrum</div>';

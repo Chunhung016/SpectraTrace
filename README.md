@@ -132,6 +132,24 @@ Downloads are cached rather than automatically refreshed. Re-running the importe
 
 `npm run import:catalog` re-fetches the external APIs without an API key, generating a new catalog snapshot; future source ordering may change. Normal `npm start` does **not** re-fetch. Startup inserts missing identities/memberships without overwriting existing records. For deliberate catalog replacement, make a backup and plan a separate migration; re-importing is not a reset operation.
 
+## SWGDRUG Infrared Library import (FTIR-ATR)
+
+The [SWGDRUG Infrared Library](https://www.swgdrug.org/ir.htm) is a free collection of measured FTIR-ATR spectra of seized-drug reference materials, maintained by the DEA Special Testing and Research Laboratory (version 3.1, 832 spectra, May 2024). It is useful when NIST has no IR spectrum, for example for cocaine.
+
+1. Download the **JCAMP** version of the library from swgdrug.org (a .zip file).
+2. Stop the server, then run:
+
+```powershell
+npm run import:swgdrug -- "C:\path\to\SWGDRUG_IR_Library_JCAMP.zip"
+npm start
+```
+
+Folders and single `.jdx`/`.dx` files also work, and nested zips are read. Spectra open in the compound's FTIR window as **SWGDRUG · ATR-FTIR** (button label *SWGDRUG*).
+
+Linking is conservative: a spectrum is attached to a catalog compound only when its title (or `##NAMES`) matches exactly one catalog name after normalising salts (*HCl* = *hydrochloride*), optical-rotation prefixes such as *(-)-*, and a trailing *base*. If the file states a molecular formula, it must agree with the catalog formula, so *Cocaine HCl* links to **(-)-Cocaine hydrochloride** and *Cocaine base* to **Cocaine**, not the other way round. Unlinked spectra are still imported and searchable by name. Force a link with `--link="SWGDRUG title=Catalog name"`. The per-spectrum result is written to `swgdrug-import-report.json`.
+
+The library is © SWGDRUG, all rights reserved. Originals stay unaltered in `data/source-downloads/swgdrug-ir/` on your computer and are not part of this repository. Imported spectra are unreviewed and excluded from unknown matching, like NIST records. Re-running the import does not duplicate records and keeps any quarantine decisions.
+
 ## Selective NIST / PNNL experimental reference import
 
 `npm run import:nist` discovers catalog-name candidates in the official [solid reflectance](https://webbook.nist.gov/chemistry/silmarils-solids-hrf-drf/) and [liquid optical-constant](https://webbook.nist.gov/chemistry/silmarils-liquids-n-k/) collections. It downloads only advertised JCAMP links when the individual spectrum page **and every decoded JCAMP block** explicitly say `Owner: Public domain`. The NIST SRD 69 compilation remains copyrighted; this is not a whole-WebBook mirror or permission to redistribute other NIST collections. NIST/Coblentz copyrighted spectra and unavailable H/C NMR remain outside this import. Broader SRD use requires clarification with NIST. No AI service or training use is involved.
