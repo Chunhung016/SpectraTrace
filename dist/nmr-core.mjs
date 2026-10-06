@@ -50,7 +50,7 @@ export function view(data,settings){
  const model=data.nmrModel,frequency=Number(settings.frequency)||0,refs=referenceSignals(data.technique,settings);
  const base=model?modelLines(model,frequency,settings.coupling!==false,settings.exchange!==false):null;
  const referenceLines=model?refs.flatMap(s=>splitSignal(s,frequency).map(l=>({...l,label:s.label,origin:s.origin,signalId:s.id,multiplicity:s.multiplicity,jHz:s.couplings.map(c=>c.jHz)}))):[];
- return {...data,...(base?{kind:'peaks',points:base.map(l=>[l.x,l.y]),nmrLines:base,yUnit:'Illustrative relative intensity'}:{}),referenceSignals:refs,referenceLines,
+ return {...data,...(base?{kind:'peaks',points:base.map(l=>[l.x,l.y]),nmrLines:base,yUnit:'Intensity (a.u.)'}:{}),referenceSignals:refs,referenceLines,
   nmrSettings:{...settings,frequency,strongCouplingWarning:!!model?.signals.some(s=>s.couplings.some(c=>(c.partners||[]).some(id=>{const partner=model.signals.find(p=>p.id===id);return partner&&Math.abs(partner.shift-s.shift)*frequency<10*c.jHz}))),carbonMode:data.technique==='c13'?'¹³C{¹H} · proton-decoupled':'¹H · first-order T / observed lines',referenceMode:model?'T reference peaks · assumed height':'Guides only · no peaks added to the measurement',solventSources:nmrSources,solventNote:'Approximate reference positions; water shifts, referencing, temperature and composition vary. Solvent selection does not recalculate compound shifts.'}};
 }
 export function lineSpacing(a,b,frequency){if(!(Number(frequency)>0)||!Number.isFinite(a)||!Number.isFinite(b))return null;return Math.abs(a-b)*Number(frequency)}

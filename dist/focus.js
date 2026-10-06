@@ -19,7 +19,7 @@
     for(const e of c.external||[]){if(e.status==='quarantined')continue;add(e.technique,/^nist/.test(e.source_id)?'NIST':/^mslib-/.test(e.source_id)?'Library':e.source_id==='massbank'?'MassBank':e.source_id==='cod'?'COD calc.':e.source_id==='cif-upload'?'CIF calc.':'Ref')}
     for(const z of c.coverage||[])add(z.technique,'Reviewed');
     for(const z of uploaded?.spectra||[])if(z.parsed)add(z.technique,'Yours');
-    if(c.id)for(const t of ['ftir','h1','c13','uv'])add(t,'T');
+    if(c.id&&c.logic&&c.logic.status!=='unresolved-structure')for(const t of ['ftir','h1','c13','uv'])add(t,'T');
     if(c.logic&&c.logic.status!=='unresolved-structure')for(const t of ['ms','raman','fluorescence'])add(t,'T');
     if(window.focusSpectraData.isotopePattern(c.formula))add('ms','Calc.');
     return out;
@@ -37,11 +37,11 @@
         if(!shown){holder.innerHTML='<span class="cv2-empty">'+(t==='xrd'?'Needs a crystal structure · try COD':'Upload or fetch data')+'</span>';label.textContent='';continue}
         let view=f.displayData(shown,t==='ftir'?'transmittance':t==='xrd'?'linear':'absorbance');
         if(['h1','c13'].includes(t)&&view.kind==='peaks')view=f.lineshape({...view,nmrLines:view.points.map(([x,y])=>({x,y}))},{frequency:shown.frequency||(t==='h1'?400:100),fwhmHz:t==='h1'?2:4});
-        holder.innerHTML=f.svg(view,{compact:true,className:'thumb-plot',ariaLabel:longNames[t]+' preview'});label.textContent=used.simulation||used.theory?'T · theory':used.calculated?'Calculated':used.label.replace(/ · \d+$/,'').slice(0,40);
+        holder.innerHTML=f.svg(view,{compact:true,className:'thumb-plot',ariaLabel:longNames[t]+' preview'});label.textContent=used.simulation||used.theory?'T':used.calculated?'Calculated':used.label.replace(/ · \d+$/,'').slice(0,40);
       }catch{holder.innerHTML='<span class="cv2-empty">Preview unavailable</span>'}
     }
   }
-  async function sourceRecord(option,technique){if(option.record)return option.record;if(option.theory){return ctx.api('/api/compounds/'+option.id+'/theory?technique='+technique)}return ctx.api(option.simulation?'/api/compounds/'+option.id+'/simulation?technique='+technique:'/api/evidence/'+option.id)}
+  async function sourceRecord(option,technique){if(option.record)return option.record;if(option.theory||option.simulation)return ctx.api('/api/compounds/'+option.id+'/theory?technique='+technique);return ctx.api('/api/evidence/'+option.id)}
   function factsMarkup(c){
     const f=window.focusSpectraData,facts=f.formulaFacts(c.formula),iso=f.isotopePattern(c.formula),rows=[];
     if(facts)rows.push(['Molar mass',facts.mw.toFixed(2)+' g mol⁻¹']);if(iso)rows.push(['Monoisotopic M⁺·','m/z '+iso.monoisotopic.toFixed(4)]);if(facts?.dbe!=null)rows.push(['Rings + π bonds',String(facts.dbe)]);if(c.inchikey)rows.push(['InChIKey','<span class="mono">'+escape(c.inchikey)+'</span>']);
@@ -71,7 +71,7 @@
   async function displayCompound(c,run,notice='',uploadedSample=null){
     if(run!==version)return;
     const ready=document.createElement('div');ready.hidden=true;ready.innerHTML=resultMarkup(c.name,!c.smiles);ctx.app.append(ready);
-    progress(65);if(c.smiles)await ctx.structure(c.smiles,ready.querySelector('#focus-structure'));if(run!==version)return;
+    progress(uploadedSample?95:65);if(c.smiles)await ctx.structure(c.smiles,ready.querySelector('#focus-structure'));if(run!==version)return;
     progress(100);await pause(180);if(run!==version)return;
     current={type:'compound',compound:c,name:c.name,notice,uploadedSample};ready.hidden=false;ctx.app.querySelector('.focus-loading')?.remove();ready.querySelector('#focus-formula').innerHTML=window.studentWorkflow.formula(c.formula);
     ready.querySelector('#cv2-facts').innerHTML=factsMarkup(c);
@@ -79,7 +79,7 @@
     if(notice)ready.querySelector('#cv2-kicker').classList.add('candidate-chip');
     const groups=(c.logic?.functionalGroups||[]).map(g=>g.label||g.id);ready.querySelector('#cv2-groups').innerHTML=groups.map(g=>'<span>'+escape(g)+'</span>').join('');
     const learn=learnMarkup(c);if(learn){const box=ready.querySelector('#cv2-learn');box.hidden=false;box.querySelector('.cv2-learn-grid').innerHTML=learn;box.querySelectorAll('[data-learn]').forEach(b=>b.onclick=()=>openSpectrum(b.dataset.learn))}
-    if(uploadedSample){const link=document.createElement('a');link.className='back-candidates';link.href='#unknown/'+uploadedSample.id;link.textContent='Back to candidates';ready.querySelector('.cv2-actions').append(link)}
+    if(uploadedSample){const link=document.createElement('a');link.className='back-candidates';link.href='#unknown/'+uploadedSample.id+'/review';link.textContent='Back to candidates';ready.querySelector('.cv2-actions').append(link)}
     showAvailability(c,uploadedSample);bindTechniques();ready.querySelector('#microscopy-button').onclick=openMicroscopy;if(!c.id)ready.querySelector('#microscopy-button').hidden=true;bindJob(c,'nist');bindJob(c,'cod');loadThumbs(current);window.scrollTo(0,0);
   }
   function bindTechniques(){ctx.app.querySelectorAll('[data-spectrum]').forEach(b=>b.onclick=()=>openSpectrum(b.dataset.spectrum));}
@@ -96,14 +96,15 @@
     if(hit){const e=await ctx.api('/api/evidence/'+hit.id);const records=[e,...e.related].filter(r=>r.status!=='quarantined');return displayCompound({name:e.name,smiles:e.smiles,formula:e.metadata?.formula||'',external:records,samples:[]},run)}
     progress(100);await pause(180);if(run===version)ctx.app.innerHTML=back()+'<div class="minimal-message">No compound found</div>';
   }
-  async function unknown(id,run){
+  async function unknown(id,run,review=false){
     const sample=await ctx.api('/api/samples/'+id);if(run!==version)return;progress(85);
     const matches=await ctx.api('/api/samples/'+id+'/matches',{});if(run!==version)return;progress(90);
+    if(!review&&matches.identification?.autoOpen){const c=await ctx.api('/api/compounds/'+matches.identification.compoundId);if(run!==version)return;return displayCompound(c,run,'Reference suggestion · not confirmed',sample)}
     current={type:'unknown',sample,name:'Unknown compound'};await window.studentWorkflow.results({...ctx,sample,matches,alive:()=>run===version,openSpectrum,onReady:async()=>{progress(100);await pause(180)}});
   }
   async function route(hash,context){
     closeAll();ctx=context;const run=version;ctx.app.innerHTML=loader();if(hash.startsWith('unknown/'))progress(80);
-    try{if(hash.startsWith('candidate/')){const [,sampleId,compoundId]=hash.split('/'),s=await ctx.api('/api/samples/'+sampleId),c=await ctx.api('/api/compounds/'+compoundId);progress(40);await displayCompound(c,run,'Student hypothesis · not confirmed',s)}else if(hash.startsWith('find/'))await search(decodeURIComponent(hash.slice(5)).trim(),run);else if(hash.startsWith('compound/')){const c=await ctx.api('/api/compounds/'+hash.slice(9));progress(40);await displayCompound(c,run)}else if(hash.startsWith('unknown/'))await unknown(hash.slice(8),run)}
+    try{if(hash.startsWith('candidate/')){const [,sampleId,compoundId]=hash.split('/'),s=await ctx.api('/api/samples/'+sampleId),c=await ctx.api('/api/compounds/'+compoundId);progress(40);await displayCompound(c,run,'Student hypothesis · not confirmed',s)}else if(hash.startsWith('find/'))await search(decodeURIComponent(hash.slice(5)).trim(),run);else if(hash.startsWith('compound/')){const c=await ctx.api('/api/compounds/'+hash.slice(9));progress(40);await displayCompound(c,run)}else if(hash.startsWith('unknown/')){const [,id,mode]=hash.split('/');await unknown(id,run,mode==='review')}}
     catch(e){if(run===version)ctx.app.innerHTML=back()+'<div class="minimal-message" role="alert">'+escape(e.message)+'</div>'}
   }
   // Plot styling lives in focus-data.js (shared with the evidence page); this adds labels and provenance.
@@ -111,11 +112,11 @@
   function plotOptions(p,shown,peaks){
     const f=window.focusSpectraData,rec=p.exportRecord||{},meta=rec.metadata||{},t=shown.technique,name=plotName(p);
     const nist=/webbook\.nist\.gov/.test(rec.source_url||meta.sourceUrl||'');
-    const credit=nist?'NIST Chemistry WebBook (https://webbook.nist.gov/chemistry)'+(meta.owner?' · © '+meta.owner.replace(/\s+/g,' ').slice(0,70):''):p.exportStatus==='theoretical'?'T · rule-based teaching illustration, not a measurement'+(shown.technique==='fluorescence'&&shown.excitation?' · excitation ≈ '+shown.excitation+' nm':''):p.exportStatus==='calculated'?'Calculated M⁺· isotope cluster for '+(meta.formula||'')+' (monoisotopic '+(meta.monoisotopic||'')+'); fragment ions are not predicted':p.exportStatus==='uploaded'?'Uploaded measurement · '+(p.owner.uploadedSample?.label||p.owner.sample?.label||''):(meta.sourceLabel||rec.source_title||p.exportLabel||'')+(meta.identityNote?' · '+meta.identityNote:'');
+    const credit=nist?'NIST Chemistry WebBook (https://webbook.nist.gov/chemistry)'+(meta.owner?' · © '+meta.owner.replace(/\s+/g,' ').slice(0,70):''):p.exportStatus==='theoretical'?'T · rule-based spectrum, not a measurement'+(shown.technique==='fluorescence'&&shown.excitation?' · excitation ≈ '+shown.excitation+' nm':''):p.exportStatus==='calculated'?'Calculated M⁺· isotope cluster for '+(meta.formula||'')+' (monoisotopic '+(meta.monoisotopic||'')+'); fragment ions are not predicted':p.exportStatus==='uploaded'?'Uploaded measurement · '+(p.owner.uploadedSample?.label||p.owner.sample?.label||''):(meta.sourceLabel||rec.source_title||p.exportLabel||'')+(meta.identityNote?' · '+meta.identityNote:'');
     const digits={ftir:0,uv:0,xrd:2,h1:3,c13:1,ms:0,raman:0,fluorescence:0}[t]??2;
     const tags=shown.peakLabels||null,tagFor=x=>{if(!tags)return '';let best='',dist=Infinity;for(const [k,v]of Object.entries(tags)){const d=Math.abs(Number(k)-x);if(d<dist){dist=d;best=v}}return dist<=(t==='xrd'?.15:.6)?best:''};
     const markers=peaks.map(q=>{const assigned=(p.assignments?.get(q.x)||'')||tagFor(q.x),value=String(Number(q.x.toFixed(digits)));return {x:q.x,on:p.peakMode==='all'||p.selectedPeaks.has(q.x),label:value+(assigned?' '+assigned:''),title:value+' '+(shown.xUnit==='2theta-deg'?'° 2θ':shown.xUnit)+(q.nmrLabel?' · '+q.nmrLabel:'')+(assigned?' · Tentative: '+assigned:''),ariaLabel:(q.signalId?'Signal centre at ':'Peak at ')+q.x+' '+shown.xUnit}});
-    const opts={markers,credit,ariaLabel:labels[t]+' spectrum of '+name,note:shown.lineshape?'Lorentzian lines · FWHM '+shown.lineshape.fwhmHz+' Hz @ '+shown.lineshape.frequency+' MHz':shown.texture?'T instrument texture (illustrative)':''};
+    const opts={markers,credit,ariaLabel:labels[t]+' spectrum of '+name,note:shown.lineshape?'Lorentzian lines · FWHM '+shown.lineshape.fwhmHz+' Hz @ '+shown.lineshape.frequency+' MHz':shown.texture?'T instrument texture':''};
     if(['ftir','ms'].includes(t))opts.title=[String(name).toUpperCase(),f.titles[t]];else opts.corner=name;
     if(p.overlay&&p.overlayData?.length){
       const series=[];for(const [i,o]of p.overlayData.entries()){if(o.index===p.currentIndex)continue;const d=f.displayData(o.data,p.mode);if(d.yUnit!==shown.yUnit||d.kind!==shown.kind)continue;series.push({label:o.label,points:d.points,color:f.palette[(series.length+1)%f.palette.length]})}
@@ -136,7 +137,7 @@
     const c=owner.compound,list=(c.external||[]).filter(e=>e.technique===technique&&e.status!=='quarantined'&&['continuous','continuous-normalized','assigned-shifts','peak-positions','reported-bands','mass-spectrum','calculated-pattern'].includes(e.representation)).map(e=>({id:e.id,label:(e.metadata?.sourceLabel||e.source_id)+(e.metadata?.measurementType?' · '+e.metadata.measurementType:''),status:'unreviewed',evidence:true,summary:e,record:e.parsed||e.data?e:null}));
     for(const s of(c.samples||[]).filter(s=>s.status==='approved')){const sample=await ctx.api('/api/samples/'+s.id);for(const z of sample.spectra.filter(z=>z.technique===technique&&z.parsed))list.unshift({id:z.id,label:s.label,status:'reviewed',record:z})}
     if(owner.uploadedSample)for(const z of owner.uploadedSample.spectra.filter(z=>z.technique===technique&&z.parsed))list.unshift({id:z.id,label:'Your upload · unknown sample',status:'uploaded',record:z});
-    if(c.id&&['ftir','h1','c13','uv'].includes(technique))list.push({id:c.id,label:'T',status:'theoretical',simulation:true});
+    if(c.id&&c.logic&&c.logic.status!=='unresolved-structure'&&['ftir','h1','c13','uv'].includes(technique))list.push({id:c.id,label:'T',status:'theoretical',simulation:true});
     if(c.id&&c.logic&&c.logic.status!=='unresolved-structure'&&['ms','raman','fluorescence'].includes(technique))list.push({id:c.id,label:technique==='ms'?'T · EI fragmentation rules':'T',status:'theoretical',theory:true});
     if(technique==='ms'){const iso=window.focusSpectraData.isotopePattern(c.formula);if(iso)list.push({id:'calc',label:'Calc. · M⁺· isotope cluster',status:'calculated',calculated:true,record:{calculated:true,status:'calculated',source_title:'Calculated from molecular formula '+c.formula,metadata:{format:'peaks',xUnit:'m/z',yMode:'relative-abundance',formula:c.formula,monoisotopic:iso.monoisotopic.toFixed(4)},parsed:{points:iso.points,range:[iso.points[0][0],iso.points.at(-1)[0]]},limitations:['Molecular-ion isotope cluster only; EI fragmentation is not predicted and M⁺· may be weak or absent.']}})}list.sort((a,b)=>window.focusSpectraData.sourcePriority(a)-window.focusSpectraData.sourcePriority(b));return list;
   }
@@ -174,7 +175,7 @@
         const record=await sourceRecord(option,technique);if(record?.none){if(p.isConnected)p.querySelector('.window-content').innerHTML='<div class="minimal-message">'+escape(record.reason)+'</div>';p.querySelector('.export-menu').hidden=true;p.exportData=null;return}
         if(!p.isConnected||selection!==p.selectionRun)return;const data=window.focusSpectraData.spectrumData(record,technique),status=p.querySelector('.spectrum-status');
         status.textContent=option.simulation||option.theory?'T':option.calculated?'Calc.':option.status==='unreviewed'?(record.metadata?.calculated?'Calc. from CIF':/^nist/.test(record.source_id||'')?'NIST · unreviewed':'Unreviewed'):option.status==='uploaded'?'Uploaded':'';
-        status.title=option.simulation||option.theory?'T: rule-based illustration. Not measured or a validated prediction.':option.calculated?'Calculated isotope cluster of the molecular ion; fragments are not predicted.':record.source_title||'Uploaded sample';status.toggleAttribute('data-theory',!!option.simulation);status.setAttribute('aria-label',option.simulation?'T: rule-based illustration, not measured':option.status);
+        status.title=option.simulation||option.theory?'T: rule-based spectrum. Not measured or a validated prediction.':option.calculated?'Calculated isotope cluster of the molecular ion; fragments are not predicted.':record.source_title||'Uploaded sample';status.toggleAttribute('data-theory',!!(option.simulation||option.theory));status.setAttribute('aria-label',option.simulation||option.theory?'T: rule-based spectrum, not measured':option.status);
         const source=p.querySelector('.source-link'),href=safeLink(record.source_url||record.metadata?.sourceUrl);source.hidden=!href;if(href)source.href=href;
         if(!data)p.querySelector('.window-content').innerHTML='<div class="minimal-message">No numerical spectrum</div>';
         if(data?.kind==='positions')status.textContent=(option.status==='unreviewed'?'Unreviewed · ':'')+'Positions only';
@@ -226,7 +227,7 @@
   function exportSvg(p,data){
     const source=p.querySelector('.floating-plot').cloneNode(true),ns='http://www.w3.org/2000/svg',base=Number(source.getAttribute('viewBox').split(' ')[3])||372;
     const addText=(text,x,y,size)=>{const line=document.createElementNS(ns,'text');line.setAttribute('x',x);line.setAttribute('y',y);line.setAttribute('font-family','Arial, Helvetica, sans-serif');line.setAttribute('font-size',size);line.setAttribute('fill','#555');line.textContent=text;source.append(line)};
-    const provenance=window.focusSpectraData.exportProvenance(p.exportRecord,data),lines=[labels[data.technique]+' · '+p.exportLabel+(p.exportStatus==='theoretical'?' · T: rule-based illustration, not measured':'')+(p.exportStatus==='unreviewed'?' · Unreviewed':'')+(p.exportStatus==='calculated'?' · Calculated, not measured':'')+(data.kind==='positions'?' · Positions only':''),'compound: '+p.exportName];if(p.owner.notice)lines.push('Identity status: '+p.owner.notice);if(p.exportStatus==='uploaded')lines.push('Uploaded measurement belongs to the unknown sample, not an authenticated reference of the selected structure.');if(data.texture)lines.push('T instrument texture: fixed seed '+data.texture.seed+'; educational effects, not an experimental prediction');if(data.lineshape)lines.push('NMR trace: '+data.lineshape.note+' (FWHM '+data.lineshape.fwhmHz+' Hz at '+data.lineshape.frequency+' MHz)');
+    const provenance=window.focusSpectraData.exportProvenance(p.exportRecord,data),lines=[labels[data.technique]+' · '+p.exportLabel+(p.exportStatus==='theoretical'?' · T: rule-based spectrum, not measured':'')+(p.exportStatus==='unreviewed'?' · Unreviewed':'')+(p.exportStatus==='calculated'?' · Calculated, not measured':'')+(data.kind==='positions'?' · Positions only':''),'compound: '+p.exportName];if(p.owner.notice)lines.push('Identity status: '+p.owner.notice);if(p.exportStatus==='uploaded')lines.push('Uploaded measurement belongs to the unknown sample, not an authenticated reference of the selected structure.');if(data.texture)lines.push('T instrument texture: fixed seed '+data.texture.seed+'; educational effects, not an experimental prediction');if(data.lineshape)lines.push('NMR trace: '+data.lineshape.note+' (FWHM '+data.lineshape.fwhmHz+' Hz at '+data.lineshape.frequency+' MHz)');
     if(p.nmr){const n=p.nmr.metadata();lines.push('NMR: '+n.settings.frequency+' MHz (observed nucleus); solvent '+n.settings.solvent+'; '+n.status);lines.push('Solvent shifts/J: '+n.settings.solventSources.shifts);if(n.lineSpacingHz!=null)lines.push('Two-line spacing: '+n.lineSpacingHz.toFixed(2)+' Hz; not a confirmed J assignment');}
     for(const key of ['source','measurementType','conditions','phase','instrument','resolution','license','citation']){
       const value=provenance[key];if(value==null||value===''||(typeof value==='object'&&!Object.keys(value).length))continue;

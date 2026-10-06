@@ -7,10 +7,12 @@ import { spawn } from 'node:child_process';
 import {openBank,stats,compound,sample,logicCounts} from './lib/bank.mjs';
 import {parseSpectrum,compareSpectra,inspectSpectrum} from './lib/spectra.mjs';
 import {interpretFtir,screenCatalog} from './lib/interpret.mjs';
+import {proposeIdentification} from './lib/identification.mjs';
 import {microscopy,MICROSCOPY_VERSION} from './lib/microscopy.mjs';
 import {listEvidence,evidence} from './lib/external.mjs';
 import {exportLogicDataset,logicSources,groupRules,LOGIC_VERSION} from './lib/logic.mjs';
 import {simulationRecord,SIMULATION_VERSION} from './lib/simulation.mjs';
+import {createStructuralSpectrumReader} from './lib/structural-spectra.mjs';
 import {importBundledLibraries,importMassBankBundle} from './lib/mslib-import.mjs';
 import {createNistFetcher,lookupNist,saveNistLookup} from './lib/nist-webbook.mjs';
 import {theoreticalMs,theoreticalRaman,theoreticalFluorescence,theoryRecord} from './lib/theory.mjs';
@@ -20,6 +22,7 @@ const dir=path.resolve(process.env.SPECTRATRACE_DATA_DIR||path.join(root,'data')
 const backupDir=path.resolve(process.env.SPECTRATRACE_BACKUP_DIR||path.join(root,'backups'));
 const exportDir=path.resolve(process.env.SPECTRATRACE_EXPORT_DIR||path.join(root,'exports'));
 const db=openBank(dir,path.join(root,'catalog','identities.json'));
+const structuralSpectrum=createStructuralSpectrumReader(db);
 const port=Number(process.env.PORT||4174), origin=`http://127.0.0.1:${port}`;
 const techniques=['ftir','h1','c13','uv','xrd','fluorescence','raman','ms'];
 const sampleTable=t=>t==='ms'?'ms_spectra':['xrd','fluorescence','raman'].includes(t)?'auxiliary_spectra':'spectra';
@@ -65,17 +68,17 @@ async function saveSample(data) {
 function matches(id) {
   const query=sample(db,id);if(!query)fail('Sample not found',404);
   if(query.kind!=='unknown')fail('Only unknown samples can be compared');
-  const usable=query.spectra.filter(s=>s.parsed);if(!usable.length)return {results:[],reason:'No parseable spectra. Originals are safely archived.',skipped:0};
+  const usable=query.spectra.filter(s=>s.parsed);if(!usable.length)return {results:[],reason:'No parseable spectra. Originals are safely archived.',skipped:0,identification:proposeIdentification(query)};
   const refs=db.prepare("SELECT id FROM samples WHERE status='approved'").all();const results=[];let skipped=0;
   for(const r of refs){const ref=sample(db,r.id),scores=[];
-    for(const a of usable){const b=ref.spectra.find(s=>s.technique===a.technique&&s.parsed);if(!b)continue;const cmp=compareSpectra(a,b);if(cmp.eligible)scores.push({technique:a.technique,...cmp})}
+    for(const a of usable){const b=ref.spectra.find(s=>s.technique===a.technique&&s.parsed);if(!b)continue;const cmp=compareSpectra(a,b);if(cmp.eligible)scores.push({technique:a.technique,...cmp,referenceNormalized:b.metadata.normalized==='true'||/normaliz/i.test(b.parsed.selectedHeader||'')})}
     if(!scores.length){skipped++;continue;}
     const c=compound(db,ref.compound_id);
     results.push({compound:{id:c.id,name:c.name,formula:c.formula},referenceId:ref.id,referenceLabel:ref.label,scores,mean:scores.reduce((s,v)=>s+v.similarity,0)/scores.length,matchedModalities:scores.length,queryModalities:usable.length,referenceModalities:ref.spectra.filter(s=>s.parsed).map(s=>s.technique)});
   }
   // Count matched techniques first, then equal-weight score. Do not fill missing modalities.
   results.sort((a,b)=>b.matchedModalities-a.matchedModalities||b.mean-a.mean);
-  return {results:results.slice(0,20),skipped,approvedSamples:refs.length,reason:!results.length?'No reviewed, parseable references with compatible conditions and ≥70% shared range. The identity catalog alone cannot identify this sample.':null,warning:'Similarity is not identification confidence. Candidate NMR/UV belongs to the reference, not your unknown. Closely related compounds and mixtures may be indistinguishable.',algorithm:'cosine-v1'};
+  return {results:results.slice(0,20),identification:proposeIdentification(query,results),skipped,approvedSamples:refs.length,reason:!results.length?'No reviewed, parseable references with compatible conditions and ≥70% shared range. The identity catalog alone cannot identify this sample.':null,warning:'Similarity is not identification confidence. Candidate NMR/UV belongs to the reference, not your unknown. Closely related compounds and mixtures may be indistinguishable.',algorithm:'cosine-v1'};
 }
 // One NIST WebBook lookup at a time per server, honouring the site's crawl delay.
 const nistGet=createNistFetcher(),nistJobs=new Map();
@@ -148,6 +151,7 @@ const server=http.createServer(async(req,res)=>{
     if(/^\/api\/compounds\/\d+\/nist$/.test(p)&&['GET','POST'].includes(req.method)){const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);if(req.method==='GET')return json(res,nistStatus(c.id));const current=nistStatus(c.id);return json(res,current.state==='running'?current:startNist(c),202)}
     if(req.method==='GET'&&/^\/api\/compounds\/\d+\/theory$/.test(p)){
       const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);const technique=url.searchParams.get('technique'),profile=c.logic;
+      if(['ftir','h1','c13','uv'].includes(technique))return json(res,simulationRecord(await structuralSpectrum(c),technique,c));
       if(!profile||profile.status==='unresolved-structure')fail('Build the structural guide first (npm run build:logic)',404);
       const result=technique==='ms'?theoreticalMs(c.formula,profile,c.smiles):technique==='raman'?theoreticalRaman(profile):technique==='fluorescence'?theoreticalFluorescence(profile):fail('Unsupported theory technique');
       if(!result)fail('No theory rule applies to this structure',404);if(!result.points)return json(res,{status:'theoretical',none:true,reason:result.reason});
@@ -167,7 +171,7 @@ const server=http.createServer(async(req,res)=>{
       const bytes=await readFile(path.join(exportDir,name)).catch(()=>null);if(!bytes)fail('Export not found',404);const format=name.split('.').at(-1);res.writeHead(200,{'Content-Type':format==='csv'?'text/csv; charset=utf-8':'image/'+format,'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name.slice(37))}`,'Cache-Control':'no-store'});return res.end(bytes);
     }
     if(req.method==='GET'&&p==='/api/simulations-info')return json(res,{version:SIMULATION_VERSION,kind:'rule-simulation',eligibleForMatching:false,identities:db.prepare('SELECT count(*) n FROM compound_simulations').get().n,memberships:db.prepare('SELECT count(*) n FROM memberships m JOIN compound_simulations s ON s.compound_id=m.compound_id').get().n});
-    if(req.method==='GET'&&/^\/api\/compounds\/\d+\/simulation$/.test(p)){const id=Number(p.split('/')[3]),row=db.prepare('SELECT s.payload,c.name,c.inchikey FROM compound_simulations s JOIN compounds c ON c.id=s.compound_id WHERE c.id=?').get(id);if(!row)fail('No structural simulation available',404);const data=JSON.parse(row.payload),technique=url.searchParams.get('technique');if(technique&&!techniques.includes(technique))fail('Unsupported technique');return json(res,technique?simulationRecord(data,technique,row):data)}
+    if(req.method==='GET'&&/^\/api\/compounds\/\d+\/simulation$/.test(p)){const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);const technique=url.searchParams.get('technique');if(technique&&!['ftir','h1','c13','uv'].includes(technique))fail('Unsupported technique');const data=await structuralSpectrum(c);return json(res,technique?simulationRecord(data,technique,c):data)}
     if(req.method==='GET'&&p==='/api/logic-info')return json(res,{method:LOGIC_VERSION,sources:logicSources,rules:groupRules.map(([id,label,smarts])=>({id,label,smarts})),counts:logicCounts(db)});
     if(req.method==='GET'&&p==='/api/logic-dataset'){res.writeHead(200,{'Content-Type':'application/json','Content-Disposition':'attachment; filename="spectratrace-1500-rule-derived.json"','Cache-Control':'no-store'});return res.end(JSON.stringify(exportLogicDataset(db),null,2))}
     if(req.method==='GET'&&p==='/api/evidence')return json(res,listEvidence(db,Object.fromEntries(url.searchParams)));

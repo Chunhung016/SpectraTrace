@@ -20,8 +20,9 @@
   }
   function spectrumData(record,technique){
     if(record.status==='quarantined')return null;
-    const meta=record.metadata||{};
-    if(record.parsed?.points?.length)return {kind:meta.format==='peaks'||technique==='ms'?'peaks':'curve',points:record.parsed.points,xUnit:meta.xUnit||units[technique],yUnit:meta.yMode||'intensity',technique,measurementType:meta.measurementType||(/reflectance|DRIFT/i.test(meta.measurement||'')?'reflectance':''),normalized:meta.normalized==='true',conditions:meta.conditions||{},simulation:record.simulation,nmrModel:record.nmrModel,frequency:meta.frequency,solvent:meta.solvent,isSimulated:['simulated','theoretical'].includes(record.status),isCalculated:!!record.calculated||!!meta.calculated,sourceId:record.source_id||'',peakLabels:record.ionLabels||meta.peakLabels||null,excitation:meta.excitation||''};
+    const meta=record.metadata||{},isTheory=['simulated','theoretical'].includes(record.status);
+    const yUnit=isTheory?(['ftir','uv'].includes(technique)?'Absorbance':technique==='ms'?'relative-abundance':'Intensity (a.u.)'):meta.yMode||'intensity';
+    if(record.parsed?.points?.length)return {kind:meta.format==='peaks'||technique==='ms'?'peaks':'curve',points:record.parsed.points,xUnit:meta.xUnit||units[technique],yUnit,technique,measurementType:meta.measurementType||(/reflectance|DRIFT/i.test(meta.measurement||'')?'reflectance':''),normalized:meta.normalized==='true',conditions:meta.conditions||{},simulation:record.simulation,nmrModel:record.nmrModel,frequency:meta.frequency,solvent:meta.solvent,isSimulated:isTheory,isCalculated:!!record.calculated||!!meta.calculated,sourceId:record.source_id||'',peakLabels:record.ionLabels||meta.peakLabels||null,excitation:meta.excitation||''};
     if(['assigned-shifts','peak-positions'].includes(record.representation)&&Array.isArray(record.data)){
       const values=record.data.filter(p=>Number.isFinite(p.shift)).map(p=>({x:p.shift,atom:p.atom||'',multiplicity:p.multiplicity||'',coupling:p.couplingText||''}));
       return values.length?{kind:'positions',values,xUnit:'ppm',technique}:null;
@@ -34,7 +35,7 @@
   }
   const cell=value=>'"'+String(value??'').replaceAll('"','""')+'"';
   function detectPeaks(data){
-    if(data.simulation&&['h1','c13'].includes(data.technique)){const groups=new Map();for(const c of data.simulation.components){if(!groups.has(c.centre))groups.set(c.centre,{x:c.centre,y:0,labels:[],origin:'illustrative centre'});const p=groups.get(c.centre);p.y+=c.weight;p.labels.push(c.label)}return [...groups.values()].sort((a,b)=>a.x-b.x)}
+    if(data.simulation&&['h1','c13'].includes(data.technique)){const groups=new Map();for(const c of data.simulation.components){if(!groups.has(c.centre))groups.set(c.centre,{x:c.centre,y:0,labels:[],origin:'T signal centre'});const p=groups.get(c.centre);p.y+=c.weight;p.labels.push(c.label)}return [...groups.values()].sort((a,b)=>a.x-b.x)}
     if(data.kind==='positions')return data.values.map(p=>({x:p.x,y:1,origin:'reported position'}));
     if(data.technique==='ms'&&data.kind==='peaks'){
       // Label the most abundant ions plus the highest-m/z ion above 2% (candidate M⁺·).
@@ -51,12 +52,12 @@
   function displayData(data,mode){
     if(data.technique==='ms'&&data.kind==='peaks'){let max=0;for(const p of data.points)max=Math.max(max,p[1]);return max>0?{...data,points:data.points.map(([x,y])=>[x,100*y/max]),yUnit:'Relative abundance (%)',normalizedFrom:max}:data}
     if(data.technique==='xrd'&&mode==='ln'&&data.kind==='curve'){const floor=Math.max(1e-6,Math.min(...data.points.map(p=>p[1]).filter(y=>y>0)));return {...data,points:data.points.map(([x,y])=>[x,Math.log(Math.max(y,floor))]),yUnit:'ln(I) (a.u.)'}}
-    if(['h1','c13'].includes(data.technique)&&mode==='sticks'){const peaks=detectPeaks(data);let max=1;for(const p of peaks)max=Math.max(max,p.y);return {...data,kind:'peaks',points:peaks.map(p=>[p.x,data.isSimulated?p.y/max:p.y]),yUnit:data.kind==='positions'?'Position marker (not intensity)':data.isSimulated?'Illustrative relative intensity':data.yUnit};}
+    if(['h1','c13'].includes(data.technique)&&mode==='sticks'){const peaks=detectPeaks(data);let max=1;for(const p of peaks)max=Math.max(max,p.y);return {...data,kind:'peaks',points:peaks.map(p=>[p.x,data.isSimulated?p.y/max:p.y]),yUnit:data.kind==='positions'?'Position marker (not intensity)':data.isSimulated?'Intensity (a.u.)':data.yUnit};}
     if(!canSwitchFtir(data))return data;
     const trans=isTransmittance(data.yUnit),fraction=trans&&!isPercent(data.yUnit),abs=/^absorbance$/i.test(data.yUnit);
     if(mode==='transmittance'){
       if(trans)return data;
-      if(data.isSimulated)return {...data,points:data.points.map(([x,y])=>[x,100*(1-y)]),yUnit:'Illustrative transmittance (%)'};
+      if(data.isSimulated)return {...data,points:data.points.map(([x,y])=>[x,100*Math.pow(10,-y)]),yUnit:'Transmittance (%)'};
       if(abs)return {...data,points:data.points.map(([x,y])=>[x,100*Math.pow(10,-y)]),yUnit:'Transmittance (%)'};
       let low=Infinity,high=-Infinity;for(const [,y]of data.points){low=Math.min(low,y);high=Math.max(high,y)}return {...data,points:data.points.map(([x,y])=>[x,1-(y-low)/(high-low||1)]),yUnit:'Relative downward display'};
     }
@@ -139,9 +140,9 @@
   function yLabel(d){
     if(d.kind==='positions')return '';
     const u=String(d.yUnit||'');
-    if(d.technique==='ftir'&&isTransmittance(u))return isPercent(u)?'TRANSMITTANCE (%)':/illustrative/i.test(u)?'TRANSMITTANCE (%, illustrative)':'TRANSMITTANCE';
-    if(/^absorbance$/i.test(u))return d.technique==='ftir'?'ABSORBANCE':'Absorbance (AU)';
-    return {'log-epsilon':'log ε','epsilon':'ε (L mol⁻¹ cm⁻¹)','relative illustrative envelope':'Illustrative intensity (a.u.)',intensity:'Intensity (a.u.)','relative-abundance':'Relative abundance'}[u]||u;
+    if(d.technique==='ftir'&&isTransmittance(u))return isPercent(u)?'TRANSMITTANCE (%)':'TRANSMITTANCE';
+    if(/^absorbance$/i.test(u))return d.technique==='ftir'?'ABSORBANCE':'Absorbance';
+    return {'log-epsilon':'log ε','epsilon':'ε (L mol⁻¹ cm⁻¹)',intensity:'Intensity (a.u.)','relative-abundance':'Relative abundance'}[u]||u;
   }
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(v,d)=>String(Number(v.toFixed(Math.min(6,d))));
@@ -161,7 +162,7 @@
     for(const s of g.series)out+=`<path d="${s.path}" fill="none" stroke="${s.color}" stroke-width="1.6" stroke-linejoin="round"/>`;
     out+=`<path d="${g.path}" fill="none" stroke="${color}" stroke-width="${(compact?2.6:1)*(data.kind==='peaks'?(data.technique==='ms'?1.6:1.3):1.25)}" stroke-linejoin="round"/></g>`;
     out+=`<path d="${tick(xt,7,'x')+tick(g.minorTicks.filter(inX),3.5,'x')+tick(yt,7,'y')+tick(g.yMinorTicks.filter(inY),3.5,'y')}" stroke="#111" stroke-width="1" fill="none"/><rect x="${l}" y="${t}" width="${r-l}" height="${b-t}" fill="none" stroke="#111" stroke-width="1.1"/>`;
-    out+=compact?`<g font-family="${font}" fill="#333" font-size="30">${xt.filter((k,i)=>i%2===0).map(k=>`<text x="${k.x.toFixed(2)}" y="${b+36}" text-anchor="middle">${fmt(k.value,g.xDecimals)}</text>`).join('')}</g>`:`<g font-family="${font}" fill="#111" font-size="13">${xt.map(k=>`<text x="${k.x.toFixed(2)}" y="${b+19}" text-anchor="middle">${fmt(k.value,g.xDecimals)}</text>`).join('')}${hideY?'':yt.map(k=>`<text x="${l-7}" y="${(k.y+4.5).toFixed(2)}" text-anchor="end">${fmt(k.value,g.yDecimals)}</text>`).join('')}<text x="${(l+r)/2}" y="${b+44}" text-anchor="middle" font-size="14">${esc(xLabels(data))}</text>${hideY?'':`<text x="20" y="${(t+b)/2}" transform="rotate(-90 20 ${(t+b)/2})" text-anchor="middle" font-size="13.5">${esc(opts.yLabel||yLabel(data))}</text>`}</g>`;
+    out+=compact?`<g font-family="${font}" fill="#333" font-size="30">${xt.filter((k,i)=>i%2===0).map(k=>`<text x="${k.x.toFixed(2)}" y="${b+36}" text-anchor="middle">${fmt(k.value,g.xDecimals)}</text>`).join('')}</g>`:`<g font-family="${font}" fill="#111" font-size="13">${xt.map(k=>`<text x="${k.x.toFixed(2)}" y="${b+19}" text-anchor="middle">${fmt(k.value,g.xDecimals)}</text>`).join('')}${hideY?'':yt.map(k=>`<text x="${l-7}" y="${(k.y+4.5).toFixed(2)}" text-anchor="end">${fmt(k.value,g.yDecimals)}</text>`).join('')}<text x="${(l+r)/2}" y="${b+44}" text-anchor="middle" font-size="14">${esc(xLabels(data))}</text>${g.positionOnly?'':`<text x="20" y="${(t+b)/2}" transform="rotate(-90 20 ${(t+b)/2})" text-anchor="middle" font-size="13.5">${esc(opts.yLabel||yLabel(data))}</text>`}</g>`;
     if(compact)return out+'</svg>';
     if(opts.corner)out+=`<text x="${r-10}" y="${t+20}" text-anchor="end" font-family="${font}" font-size="13" letter-spacing="1" fill="#111">${esc(opts.corner)}</text>`;
     // Series labels sit beside each curve's extreme, coloured like the curve (overlay view).
