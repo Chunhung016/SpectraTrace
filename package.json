@@ -11,7 +11,8 @@
     "import:nist": "node scripts/import-nist.mjs",
     "build:logic": "node scripts/build-logic-dataset.mjs",
     "build:simulations": "node scripts/build-simulations.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "import:ms": "node scripts/import-ms-library.mjs"
   },
   "engines": {
     "node": ">=24"

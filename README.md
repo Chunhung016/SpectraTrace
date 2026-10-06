@@ -63,6 +63,21 @@ Functional-group screening references: [MSU infrared teaching resource](https://
 
 Storage migrations 5–6 are additive: extra techniques go into `auxiliary_spectra`; original spectral tables/files are not rebuilt. Hypotheses and microscopy citation caches are separate from reference approvals. Backups include these tables and additional original uploads. Automated tests cover multi-column selection, suspect artifacts, T-only reproducible texture, axis padding, CC BY/retraction filtering, hypothesis isolation, additional uploads, no-overwrite behavior and backup/restart persistence.
 
+## Mass spectrometry (MS) and printed-spectrum plots
+
+Every compound page now has an **MS** button next to FTIR, NMR, UV–Vis, XRD, fluorescence and Raman. Small labels under each button show what that window will offer: *NIST*, *Library*, *Reviewed*, *Yours* (your upload), *T* (teaching model) or *Calc.*.
+
+The MS window can show, in this order:
+
+- **NIST WebBook EI mass spectra** fetched with **Get NIST WebBook spectra** (below).
+- **Bundled EI-MS libraries** in `sources/ms-libraries/` (Food, EssOil, PedUrine, NIST-ei-plant-unconfirmed; NIST MS Search format). They are decoded and imported automatically on the first `npm start` (about 2,290 validated spectra; records that fail validation are skipped and counted). Re-import or add another library with `npm run import:ms -- path/to/library.zip`. Most Food/EssOil/PedUrine entries are unidentified or tentatively named recurrent spectra; only exact InChIKeys link a spectrum to a catalog compound, and none of the bundled spectra currently match the 1,461 starter identities. Search a library name (e.g. *eucalyptol*) from the home page to open it.
+- **Calc. · M⁺· isotope cluster** computed from the molecular formula. Fragment ions are not predicted.
+- Your own MS peak list (two columns: m/z, abundance) added with **+** on an unknown sample or in *Add NMR, UV–Vis, MS or another technique* during upload.
+
+**Get NIST WebBook spectra** (compound page) looks the compound up on the NIST Chemistry WebBook by its exact InChIKey and downloads the IR, electron-ionization mass and UV/Vis JCAMP-DX files NIST lists for it. Only the InChIKey is sent; robots.txt and its 5-second crawl delay are honoured, so a lookup takes roughly 30–60 seconds. Originals are kept unaltered in `data/source-downloads/nist-webbook/`, shown with NIST attribution, marked unreviewed and excluded from unknown matching. NIST data remain © U.S. Secretary of Commerce / the listed owners; they are cached for local educational viewing and are not part of this repository. NIST has no NMR or XRD data.
+
+Plots use a printed-spectrum style: closed frame with inward major/minor ticks, 1–2–5 tick values, a red NIST-style FTIR trace with title and transmittance axis, black NMR traces on δ (ppm) without intensity numbers, XRD with optional ln(I) and vertical peak labels, MS sticks with the main ions labelled, and an **overlay** button (wave icon) that draws every available source in colour with labels beside each curve. NMR line lists (T and peak lists) are drawn as a continuous Lorentzian spectrum (line width adjustable under ↔; *|||* switches to sticks); measured NMR traces are always drawn as recorded and CSV exports keep the original line lists.
+
 ## Starter identity selection
 
 The checked-in [catalog/identities.json](catalog/identities.json) contains **1,500 source-backed collection memberships, 1,461 distinct InChIKeys**:

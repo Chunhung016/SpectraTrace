@@ -11,13 +11,16 @@ import {microscopy,MICROSCOPY_VERSION} from './lib/microscopy.mjs';
 import {listEvidence,evidence} from './lib/external.mjs';
 import {exportLogicDataset,logicSources,groupRules,LOGIC_VERSION} from './lib/logic.mjs';
 import {simulationRecord,SIMULATION_VERSION} from './lib/simulation.mjs';
+import {importBundledLibraries} from './lib/mslib-import.mjs';
+import {createNistFetcher,lookupNist,saveNistLookup} from './lib/nist-webbook.mjs';
 const root=fileURLToPath(new URL('.',import.meta.url));
 const dir=path.resolve(process.env.SPECTRATRACE_DATA_DIR||path.join(root,'data'));
 const backupDir=path.resolve(process.env.SPECTRATRACE_BACKUP_DIR||path.join(root,'backups'));
 const exportDir=path.resolve(process.env.SPECTRATRACE_EXPORT_DIR||path.join(root,'exports'));
 const db=openBank(dir,path.join(root,'catalog','identities.json'));
 const port=Number(process.env.PORT||4174), origin=`http://127.0.0.1:${port}`;
-const techniques=['ftir','h1','c13','uv','xrd','fluorescence','raman'];
+const techniques=['ftir','h1','c13','uv','xrd','fluorescence','raman','ms'];
+const sampleTable=t=>t==='ms'?'ms_spectra':['xrd','fluorescence','raman'].includes(t)?'auxiliary_spectra':'spectra';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status})};
 const json=(res,data,status=200)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data))};
 const clean=(x,max=1000)=>String(x||'').trim().slice(0,max);
@@ -30,13 +33,13 @@ function sampleCreate(data) {
   if(data.kind==='reference'&&!db.prepare('SELECT id FROM compounds WHERE id=?').get(Number(data.compoundId)))fail('Select a real catalog compound for the reference');
   const metadata=Object.fromEntries(['contributor','provenance','license','purity','batch','notes'].map(k=>[k,clean(data.metadata?.[k],5000)]));
   if(data.kind==='reference'&&(!clean(metadata.contributor)||!clean(metadata.provenance)||!clean(metadata.license)))fail('Reference requires contributor, provenance and reuse permission/license');
-  if(!Array.isArray(data.files)||!data.files.length||data.files.length>7)fail('Supply 1 to 7 spectral files, one per technique');
+  if(!Array.isArray(data.files)||!data.files.length||data.files.length>techniques.length)fail('Supply 1 to '+techniques.length+' spectral files, one per technique');
   const seen=new Set();
   const files=data.files.map(f=>{
     if(!techniques.includes(f.technique)||seen.has(f.technique))fail('One file per supported technique');seen.add(f.technique);
     if(!/^[A-Za-z0-9+/]*={0,2}$/.test(f.base64||''))fail('Invalid file encoding');
     const bytes=Buffer.from(f.base64,'base64');if(!bytes.length||bytes.length>25000000)fail('Each file must be 1 byte to 25 MB');
-    const meta=Object.fromEntries(['xUnit','format','yMode','instrument','date','phase','measurement','resolution','solvent','frequency','concentration','pathLength','notes','yColumn','normalized','temperature','scans','background','sampleType','processing','radiation','polymorph','excitation'].map(k=>[k,clean(f.metadata?.[k])]));let parsed=null,error=null;
+    const meta=Object.fromEntries(['xUnit','format','yMode','instrument','date','phase','measurement','resolution','solvent','frequency','concentration','pathLength','notes','yColumn','normalized','temperature','scans','background','sampleType','processing','radiation','polymorph','excitation','ionization'].map(k=>[k,clean(f.metadata?.[k])]));let parsed=null,error=null;
     try{parsed=parseSpectrum(bytes,f.technique,meta)}catch(e){error=e.message}
     return {id:randomUUID(),technique:f.technique,bytes,filename:path.basename(clean(f.name,250)).replace(/[\r\n"]/g,'_'),hash:createHash('sha256').update(bytes).digest('hex'),metadata:meta,parsed,error};
   });
@@ -51,9 +54,7 @@ async function saveSample(data) {
     db.exec('BEGIN IMMEDIATE');
     try {
       db.prepare('INSERT INTO samples(id,kind,label,compound_id,status,metadata,created_at) VALUES(?,?,?,?,?,?,?)').run(value.id,value.kind,value.label,value.compoundId,value.kind==='reference'?'pending':'unknown',JSON.stringify(value.metadata),new Date().toISOString());
-      const insert=db.prepare('INSERT INTO spectra VALUES(?,?,?,?,?,?,?,?,?)');
-      const extra=db.prepare('INSERT INTO auxiliary_spectra VALUES(?,?,?,?,?,?,?,?,?)');
-      for(const f of value.files)(['xrd','fluorescence','raman'].includes(f.technique)?extra:insert).run(f.id,value.id,f.technique,f.filename,f.bytes.length,f.hash,JSON.stringify(f.metadata),f.parsed?JSON.stringify(f.parsed):null,f.error);
+      for(const f of value.files)db.prepare('INSERT INTO '+sampleTable(f.technique)+' VALUES(?,?,?,?,?,?,?,?,?)').run(f.id,value.id,f.technique,f.filename,f.bytes.length,f.hash,JSON.stringify(f.metadata),f.parsed?JSON.stringify(f.parsed):null,f.error);
       db.exec('COMMIT');
     }catch(e){db.exec('ROLLBACK');throw e;}
   }catch(e){for(const p of written)await rm(p,{force:true});throw e;}
@@ -73,6 +74,15 @@ function matches(id) {
   // Count matched techniques first, then equal-weight score. Do not fill missing modalities.
   results.sort((a,b)=>b.matchedModalities-a.matchedModalities||b.mean-a.mean);
   return {results:results.slice(0,20),skipped,approvedSamples:refs.length,reason:!results.length?'No reviewed, parseable references with compatible conditions and ≥70% shared range. The identity catalog alone cannot identify this sample.':null,warning:'Similarity is not identification confidence. Candidate NMR/UV belongs to the reference, not your unknown. Closely related compounds and mixtures may be indistinguishable.',algorithm:'cosine-v1'};
+}
+// One NIST WebBook lookup at a time per server, honouring the site's crawl delay.
+const nistGet=createNistFetcher(),nistJobs=new Map();
+function nistStatus(id){const job=nistJobs.get(id);if(job)return job;const saved=db.prepare('SELECT payload,retrieved_at FROM nist_lookups WHERE compound_id=?').get(id);return saved?{state:'done',retrievedAt:saved.retrieved_at,...JSON.parse(saved.payload)}:{state:'never'}}
+function startNist(c){
+  if([...nistJobs.values()].some(j=>j.state==='running'))fail('Another NIST lookup is running; try again shortly',409);
+  const job={state:'running',step:'Starting',startedAt:new Date().toISOString()};nistJobs.set(c.id,job);
+  lookupNist(c,{get:nistGet,onStep:s=>job.step=s}).then(r=>saveNistLookup(db,dir,c,r)).then(p=>{nistJobs.delete(c.id)}).catch(e=>{Object.assign(job,{state:'error',error:'NIST lookup failed: '+e.message});setTimeout(()=>nistJobs.get(c.id)===job&&nistJobs.delete(c.id),60000)});
+  return job;
 }
 let backupInProgress=false;
 async function backup() {
@@ -102,7 +112,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='POST'&&/^\/api\/samples\/[a-f0-9-]+\/add-spectrum$/.test(p)){
       const s=sample(db,p.split('/')[3]),data=await body(req);if(!s||s.kind!=='unknown')fail('Add-on uploads are only allowed for unknown samples');if(s.spectra.some(z=>z.technique===data.file?.technique))fail('This sample already has that technique; originals will not be overwritten',409);
       const value=sampleCreate({id:randomUUID(),kind:'unknown',label:s.label,files:[data.file],metadata:{}}),f=value.files[0];if(!f.parsed)fail(f.error);const original=path.join(dir,'uploads',f.id);await writeFile(original,f.bytes,{flag:'wx'});
-      try{const table=['xrd','fluorescence','raman'].includes(f.technique)?'auxiliary_spectra':'spectra';db.prepare('INSERT INTO '+table+' VALUES(?,?,?,?,?,?,?,?,?)').run(f.id,s.id,f.technique,f.filename,f.bytes.length,f.hash,JSON.stringify(f.metadata),JSON.stringify(f.parsed),null)}catch(e){await rm(original,{force:true});throw e}return json(res,sample(db,s.id),201);
+      try{db.prepare('INSERT INTO '+sampleTable(f.technique)+' VALUES(?,?,?,?,?,?,?,?,?)').run(f.id,s.id,f.technique,f.filename,f.bytes.length,f.hash,JSON.stringify(f.metadata),JSON.stringify(f.parsed),null)}catch(e){await rm(original,{force:true});throw e}return json(res,sample(db,s.id),201);
     }
     if(req.method==='GET'&&/^\/api\/samples\/[a-f0-9-]+\/analysis$/.test(p)){
       const s=sample(db,p.split('/')[3]);if(!s||s.kind!=='unknown')fail('Unknown sample not found',404);
@@ -116,6 +126,7 @@ const server=http.createServer(async(req,res)=>{
       db.prepare('INSERT INTO student_selections VALUES(?,?,?,?) ON CONFLICT(sample_id) DO UPDATE SET compound_id=excluded.compound_id,selected_at=excluded.selected_at,note=excluded.note').run(s.id,id,new Date().toISOString(),'Student-selected hypothesis, not confirmed identification; never a reference approval');return json(res,{sampleId:s.id,compoundId:id,status:'student-hypothesis'});
     }
     if(req.method==='GET'&&/^\/api\/compounds\/\d+\/microscopy$/.test(p)){const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);const saved=db.prepare('SELECT * FROM microscopy_searches WHERE compound_id=?').get(c.id);if(saved&&Date.now()-Date.parse(saved.retrieved_at)<86400000&&JSON.parse(saved.payload).version===MICROSCOPY_VERSION)return json(res,JSON.parse(saved.payload));try{const result=await microscopy(c.name);db.prepare('INSERT INTO microscopy_searches VALUES(?,?,?) ON CONFLICT(compound_id) DO UPDATE SET payload=excluded.payload,retrieved_at=excluded.retrieved_at').run(c.id,JSON.stringify(result),new Date().toISOString());return json(res,result)}catch(e){fail('Literature lookup unavailable: '+e.message,502)}}
+    if(/^\/api\/compounds\/\d+\/nist$/.test(p)&&['GET','POST'].includes(req.method)){const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);if(req.method==='GET')return json(res,nistStatus(c.id));const current=nistStatus(c.id);return json(res,current.state==='running'?current:startNist(c),202)}
     if(req.method==='POST'&&p==='/api/exports'){
       const data=await body(req),format=data.format;if(!['png','jpeg','csv'].includes(format))fail('Unsupported export format');
       if(!/^[A-Za-z0-9+/]*={0,2}$/.test(data.base64||''))fail('Invalid file encoding');const bytes=Buffer.from(data.base64||'','base64');if(!bytes.length||bytes.length>10000000)fail('Export must be 1 byte to 10 MB');
@@ -152,7 +163,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='GET'&&p==='/api/samples')return json(res,db.prepare('SELECT s.*,c.name compound_name FROM samples s LEFT JOIN compounds c ON c.id=s.compound_id ORDER BY created_at DESC LIMIT 200').all().map(s=>({...s,metadata:JSON.parse(s.metadata)})));
     if(req.method==='GET'&&/^\/api\/samples\/[a-f0-9-]+$/.test(p)){const s=sample(db,p.split('/').at(-1));if(!s)fail('Sample not found',404);return json(res,s)}
     if(req.method==='GET'&&/^\/api\/files\/[a-f0-9-]+$/.test(p)){
-      const id=p.split('/').at(-1),f=db.prepare('SELECT filename,sha256 FROM spectra WHERE id=? UNION ALL SELECT filename,sha256 FROM auxiliary_spectra WHERE id=?').get(id,id);if(!f)fail('File not found',404);
+      const id=p.split('/').at(-1),f=db.prepare('SELECT filename,sha256 FROM all_sample_spectra WHERE id=?').get(id);if(!f)fail('File not found',404);
       res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(f.filename)}`,'X-SHA256':f.sha256});return res.end(await readFile(path.join(dir,'uploads',id)));
     }
     if(req.method==='GET'&&/^\/api\/backups\/spectratrace-[A-Za-z0-9-]+\.tar\.gz$/.test(p)){const name=p.split('/').at(-1);res.writeHead(200,{'Content-Type':'application/gzip','Content-Disposition':`attachment; filename="${name}"`});return res.end(await readFile(path.join(backupDir,name)))}
@@ -183,6 +194,8 @@ const server=http.createServer(async(req,res)=>{
     const content=await readFile(target);res.writeHead(200,{'Content-Type':mime,'Cache-Control':'no-cache'});res.end(content);
   }catch(e){if(!res.headersSent)json(res,{error:e.status?e.message:'Server error; no successful save was confirmed.'},e.status||500);else res.end();if(!e.status)console.error(e);}
 });
-server.listen(port,'127.0.0.1',()=>console.log(`SpectraTrace local data bank: ${origin}\nDatabase: ${dir}\nCatalog: ${stats(db).uniqueIdentities} unique identities. Originals stay on this computer.`));
+server.listen(port,'127.0.0.1',()=>{console.log(`SpectraTrace local data bank: ${origin}\nDatabase: ${dir}\nCatalog: ${stats(db).uniqueIdentities} unique identities. Originals stay on this computer.`);
+  // Bundled EI-MS libraries (sources/ms-libraries) are imported once per archive checksum.
+  if(process.env.SPECTRATRACE_SKIP_BUNDLED_MS!=='1')importBundledLibraries(db,dir,root,m=>console.log('MS library · '+m)).catch(e=>console.error('MS library import failed: '+e.message));});
 function stop(){server.close(()=>{db.close();process.exit()})}
 process.on('SIGINT',stop);process.on('SIGTERM',stop);
