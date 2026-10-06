@@ -92,3 +92,4 @@ body[data-page=unknown].focus-portal main{display:block;padding:4.5rem 0 3rem;wi
 @media(max-width:520px){.cv2-grid.techniques{grid-template-columns:1fr}}
 .cv2-grid.techniques{width:100%;max-width:none}.cv2-card-top{flex-direction:column;align-items:flex-start;gap:.1rem}.techniques .cv2-card small.tech-available{text-align:left;white-space:normal}
 .analysis-plot{background:#fff;border:1px solid #e0e9e3;border-radius:18px;padding:.4rem;margin:1rem 0}.analysis-plot:empty{display:none}
+.cv2-file{font-size:.78rem;padding:.5rem .95rem;border-radius:999px;background:#fff;border:1px solid #c9bce6;color:#5b3a99;cursor:pointer}.cod-help a{color:#5b3a99}

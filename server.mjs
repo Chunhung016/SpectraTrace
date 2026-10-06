@@ -17,6 +17,9 @@ import {importBundledLibraries,importMassBankBundle} from './lib/mslib-import.mj
 import {createNistFetcher,lookupNist,saveNistLookup} from './lib/nist-webbook.mjs';
 import {theoreticalMs,theoreticalRaman,theoreticalFluorescence,theoryRecord} from './lib/theory.mjs';
 import {createCodFetcher,searchCod,saveCalculatedPattern,COD_ORIGIN} from './lib/cod.mjs';
+import {useSystemCertificates} from './lib/net.mjs';
+// Trust the Windows/macOS certificate store too, as browsers do (fixes sites that open in a browser but not in Node).
+const certificateStore=await useSystemCertificates();
 const root=fileURLToPath(new URL('.',import.meta.url));
 const dir=path.resolve(process.env.SPECTRATRACE_DATA_DIR||path.join(root,'data'));
 const backupDir=path.resolve(process.env.SPECTRATRACE_BACKUP_DIR||path.join(root,'backups'));
@@ -226,7 +229,7 @@ const server=http.createServer(async(req,res)=>{
     const content=await readFile(target);res.writeHead(200,{'Content-Type':mime,'Cache-Control':'no-cache'});res.end(content);
   }catch(e){if(!res.headersSent)json(res,{error:e.status?e.message:'Server error; no successful save was confirmed.'},e.status||500);else res.end();if(!e.status)console.error(e);}
 });
-server.listen(port,'127.0.0.1',()=>{console.log(`SpectraTrace local data bank: ${origin}\nDatabase: ${dir}\nCatalog: ${stats(db).uniqueIdentities} unique identities. Originals stay on this computer.`);
+server.listen(port,'127.0.0.1',()=>{console.log(`SpectraTrace local data bank: ${origin}\nDatabase: ${dir}\nCatalog: ${stats(db).uniqueIdentities} unique identities. Originals stay on this computer.\nHTTPS certificates: ${certificateStore}`);
   // Bundled EI-MS libraries (sources/ms-libraries) are imported once per archive checksum.
   if(process.env.SPECTRATRACE_SKIP_BUNDLED_MS!=='1')importBundledLibraries(db,dir,root,m=>console.log('MS library · '+m)).then(()=>importMassBankBundle(db,dir,root,m=>console.log(m))).catch(e=>console.error('Bundled spectra import failed: '+e.message));});
 function stop(){server.close(()=>{db.close();process.exit()})}
