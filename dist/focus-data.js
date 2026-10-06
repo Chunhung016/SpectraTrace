@@ -13,7 +13,7 @@
     const record=option.record||option.summary||{},meta=record.metadata||{};
     if(incompatibleFtirType(meta.measurementType)||incompatibleFtirType(meta.yMode))return 8;
     if(option.status==='reviewed')return 0;
-    if(/nist/i.test(record.source_id||''))return 1;
+    if(/nist|swgdrug/i.test(record.source_id||''))return 1;
     if(/^EI/.test(meta.ionization||''))return 1.2;
     if(meta.calculated)return 1.6;
     return record.parsed?1.5:/^continuous/.test(record.representation||'')?2:4;
