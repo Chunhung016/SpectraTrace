@@ -92,3 +92,28 @@ body[data-page=unknown].focus-portal main{display:block;padding:4.5rem 0 3rem;wi
 @media(max-width:520px){.cv2-grid.techniques{grid-template-columns:1fr}}
 .cv2-grid.techniques{width:100%;max-width:none}.cv2-card-top{flex-direction:column;align-items:flex-start;gap:.1rem}.techniques .cv2-card small.tech-available{text-align:left;white-space:normal}
 .analysis-plot{background:#fff;border:1px solid #e0e9e3;border-radius:18px;padding:.4rem;margin:1rem 0}.analysis-plot:empty{display:none}
+/* FTIR comparison panel (Unknown_1.csv) */
+.ftir-compare{margin:1.5rem 0 2rem}
+.ftir-compare h2{font-size:1rem;margin:0 0 .4rem}
+.compare-loading{display:grid;gap:.7rem;place-items:center;padding:2.2rem 1rem;background:#fff;border:1px solid var(--border);border-radius:14px}
+.compare-loading .focus-progress{width:min(320px,80%)}
+.compare-loading .focus-progress i{transition:width .45s ease}
+.compare-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-top:.9rem}
+.compare-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:1.4rem .9rem 1rem;background:#fff;border-radius:14px;min-width:0;animation:compare-in .35s ease both}
+.compare-card:nth-child(2){animation-delay:.08s}.compare-card:nth-child(3){animation-delay:.16s}.compare-card:nth-child(4){animation-delay:.24s}
+.compare-card .candidate-drawing,.compare-card .candidate-drawing svg{height:120px}
+.compare-card strong{font-size:.9rem;font-weight:600;text-align:center;overflow-wrap:anywhere}
+.compare-card .molecular-formula{font-size:.9rem;margin:0}
+.compare-score{display:grid;gap:.35rem;width:100%;margin-top:.3rem}
+.compare-score b{font-size:1.35rem;font-weight:650;color:#39725b;font-variant-numeric:tabular-nums}
+.compare-meter{display:block;height:6px;background:#e0eae3;border-radius:6px;overflow:hidden}
+.compare-meter i{display:block;height:100%;background:#7fa893;border-radius:6px}
+.compare-card.best{background:#fff6e6;border:2px solid #d68a1f;box-shadow:0 6px 20px #d68a1f2e}
+.compare-card.best:hover{background:#ffefd3;border-color:#c07712}
+.compare-card.best .compare-score b{color:#a85f0a}
+.compare-card.best .compare-meter{background:#f6dfba}
+.compare-card.best .compare-meter i{background:#d68a1f}
+.compare-tag{position:absolute;top:-.7rem;left:50%;transform:translateX(-50%);background:#d68a1f;color:#fff;font-size:.68rem;font-weight:600;letter-spacing:.03em;padding:.2rem .65rem;border-radius:20px;white-space:nowrap}
+@keyframes compare-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(max-width:760px){.compare-grid{grid-template-columns:1fr 1fr}}
+@media(prefers-reduced-motion:reduce){.compare-card{animation:none}.compare-loading .focus-progress i{transition:none}}
