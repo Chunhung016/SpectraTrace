@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SpectraTrace · Research data bank</title>
+  <meta name="description" content="A local spectroscopy research bank with traceable compound identities, original experimental files and reviewed reference spectra.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23101831'/%3E%3Cpath d='M10 37h9l5-18 8 31 7-24 5 11h10' fill='none' stroke='%237cf7d4' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/bank.css">
+  <script src="/vendor/RDKit_minimal.js" defer></script><script src="/focus-data.js" defer></script><script src="/nmr-ui.js" defer></script><script src="/student.js" defer></script><script src="/focus.js" defer></script><script src="/bank.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="#home"><svg viewBox="0 0 44 32" aria-hidden="true"><path d="M2 19h8L15 3l9 26 7-21 5 11h6"/></svg>SpectraTrace</a><nav aria-label="Main navigation"><a href="#library">Data bank</a><a href="#evidence">Spectral evidence</a><a href="#upload-unknown">Upload</a><details class="nav-more"><summary>More</summary><div class="nav-menu"><a href="#logic">Structure logic</a><a href="#upload-reference">Add reference</a><a href="#samples">Samples & review</a><a href="#settings">Storage</a></div></details></nav></header>
+  <main id="app"><p class="loading">Opening your local data bank…</p></main>
+  <footer><span>Identity ≠ spectral evidence. Similarity ≠ identification confidence.</span><span>No paid AI calls · Original files stay on this computer</span></footer>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <dialog id="detail"><button class="close" aria-label="Close compound details">×</button><div id="detail-body"></div></dialog>
+  <script>if(location.protocol==='file:'){document.getElementById('app').textContent='Open this portal through its local server, not by double-clicking the HTML. Run npm start in the SpectraTrace folder, then visit http://127.0.0.1:4174.';}</script>
+</body></html>

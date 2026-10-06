@@ -1,0 +1,18 @@
+node_modules/
+/data/
+/backups/
+/exports/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+
+# Rebuildable data exports, local import reports and screenshots.
+/logic-dataset-1500.json
+/theoretical-dataset-1500.json
+/*-import-report.json
+/*-preview.png
+/*-preview.jpg

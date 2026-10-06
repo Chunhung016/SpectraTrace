@@ -1,0 +1,23 @@
+{
+  "name": "spectratrace-local-bank",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "import:catalog": "node scripts/import-catalog.mjs",
+    "acquire:spectra": "node scripts/acquire-spectra.mjs",
+    "extract:spectra": "node scripts/extract-spectra.mjs",
+    "import:spectra": "node scripts/import-spectra.mjs",
+    "import:nist": "node scripts/import-nist.mjs",
+    "build:logic": "node scripts/build-logic-dataset.mjs",
+    "build:simulations": "node scripts/build-simulations.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@rdkit/rdkit": "2026.9.1",
+    "jcampconverter": "9.0.0"
+  }
+}
