@@ -12,7 +12,8 @@
     "build:logic": "node scripts/build-logic-dataset.mjs",
     "build:simulations": "node scripts/build-simulations.mjs",
     "test": "node --test tests/*.test.mjs",
-    "import:ms": "node scripts/import-ms-library.mjs"
+    "import:ms": "node scripts/import-ms-library.mjs",
+    "build:massbank": "node scripts/build-massbank-bundle.mjs"
   },
   "engines": {
     "node": ">=24"

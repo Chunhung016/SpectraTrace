@@ -14,12 +14,14 @@
     if(incompatibleFtirType(meta.measurementType)||incompatibleFtirType(meta.yMode))return 8;
     if(option.status==='reviewed')return 0;
     if(/nist/i.test(record.source_id||''))return 1;
+    if(/^EI/.test(meta.ionization||''))return 1.2;
+    if(meta.calculated)return 1.6;
     return record.parsed?1.5:/^continuous/.test(record.representation||'')?2:4;
   }
   function spectrumData(record,technique){
     if(record.status==='quarantined')return null;
     const meta=record.metadata||{};
-    if(record.parsed?.points?.length)return {kind:meta.format==='peaks'||technique==='ms'?'peaks':'curve',points:record.parsed.points,xUnit:meta.xUnit||units[technique],yUnit:meta.yMode||'intensity',technique,measurementType:meta.measurementType||(/reflectance|DRIFT/i.test(meta.measurement||'')?'reflectance':''),normalized:meta.normalized==='true',conditions:meta.conditions||{},simulation:record.simulation,nmrModel:record.nmrModel,frequency:meta.frequency,solvent:meta.solvent,isSimulated:['simulated','theoretical'].includes(record.status),isCalculated:!!record.calculated,sourceId:record.source_id||''};
+    if(record.parsed?.points?.length)return {kind:meta.format==='peaks'||technique==='ms'?'peaks':'curve',points:record.parsed.points,xUnit:meta.xUnit||units[technique],yUnit:meta.yMode||'intensity',technique,measurementType:meta.measurementType||(/reflectance|DRIFT/i.test(meta.measurement||'')?'reflectance':''),normalized:meta.normalized==='true',conditions:meta.conditions||{},simulation:record.simulation,nmrModel:record.nmrModel,frequency:meta.frequency,solvent:meta.solvent,isSimulated:['simulated','theoretical'].includes(record.status),isCalculated:!!record.calculated||!!meta.calculated,sourceId:record.source_id||'',peakLabels:record.ionLabels||meta.peakLabels||null,excitation:meta.excitation||''};
     if(['assigned-shifts','peak-positions'].includes(record.representation)&&Array.isArray(record.data)){
       const values=record.data.filter(p=>Number.isFinite(p.shift)).map(p=>({x:p.shift,atom:p.atom||'',multiplicity:p.multiplicity||'',coupling:p.couplingText||''}));
       return values.length?{kind:'positions',values,xUnit:'ppm',technique}:null;
@@ -148,8 +150,8 @@
   // technique colour, optional NIST-style title and source credit.
   function svg(data,opts={}){
     const g=chart(data,opts.series||[]);if(!g)return '';
-    const {l,r,t,b}=g.box,H=g.height,color=opts.color||(data.isSimulated||data.isCalculated?'#555':colors[data.technique])||'#222',font='Arial, Helvetica, sans-serif',clip='plot-clip-'+(++clipCount);
-    const hideY=opts.hideYValues??(['h1','c13'].includes(data.technique)||g.positionOnly);
+    const {l,r,t,b}=g.box,H=g.height,color=opts.color||(data.isSimulated?'#555':colors[data.technique])||'#222',font='Arial, Helvetica, sans-serif',clip='plot-clip-'+(++clipCount);
+    const compact=!!opts.compact,hideY=compact||(opts.hideYValues??(['h1','c13'].includes(data.technique)||g.positionOnly));
     const tick=(ticks,len,axis)=>ticks.map(k=>axis==='x'?`M${k.x.toFixed(2)} ${b}v${-len}M${k.x.toFixed(2)} ${t}v${len}`:`M${l} ${k.y.toFixed(2)}h${len}M${r} ${k.y.toFixed(2)}h${-len}`).join('');
     const inX=k=>k.x>=l-.5&&k.x<=r+.5,inY=k=>k.y>=t-.5&&k.y<=b+.5;
     const xt=g.ticks.filter(inX),yt=g.yTicks.filter(k=>inY(k)&&!(data.technique==='ms'&&k.value>100));
@@ -157,9 +159,10 @@
     if(opts.title)out+=`<g font-family="${font}" fill="#111" text-anchor="middle" font-size="12.5" letter-spacing=".4">${[].concat(opts.title).map((line,i)=>`<text x="${(l+r)/2}" y="${18+i*16}">${esc(line)}</text>`).join('')}</g>`;
     out+=`<g clip-path="url(#${clip})">`;
     for(const s of g.series)out+=`<path d="${s.path}" fill="none" stroke="${s.color}" stroke-width="1.6" stroke-linejoin="round"/>`;
-    out+=`<path d="${g.path}" fill="none" stroke="${color}" stroke-width="${data.kind==='peaks'?(data.technique==='ms'?1.6:1.3):1.25}" stroke-linejoin="round"/></g>`;
+    out+=`<path d="${g.path}" fill="none" stroke="${color}" stroke-width="${(compact?2.6:1)*(data.kind==='peaks'?(data.technique==='ms'?1.6:1.3):1.25)}" stroke-linejoin="round"/></g>`;
     out+=`<path d="${tick(xt,7,'x')+tick(g.minorTicks.filter(inX),3.5,'x')+tick(yt,7,'y')+tick(g.yMinorTicks.filter(inY),3.5,'y')}" stroke="#111" stroke-width="1" fill="none"/><rect x="${l}" y="${t}" width="${r-l}" height="${b-t}" fill="none" stroke="#111" stroke-width="1.1"/>`;
-    out+=`<g font-family="${font}" fill="#111" font-size="13">${xt.map(k=>`<text x="${k.x.toFixed(2)}" y="${b+19}" text-anchor="middle">${fmt(k.value,g.xDecimals)}</text>`).join('')}${hideY?'':yt.map(k=>`<text x="${l-7}" y="${(k.y+4.5).toFixed(2)}" text-anchor="end">${fmt(k.value,g.yDecimals)}</text>`).join('')}<text x="${(l+r)/2}" y="${b+44}" text-anchor="middle" font-size="14">${esc(xLabels(data))}</text>${hideY?'':`<text x="20" y="${(t+b)/2}" transform="rotate(-90 20 ${(t+b)/2})" text-anchor="middle" font-size="13.5">${esc(opts.yLabel||yLabel(data))}</text>`}</g>`;
+    out+=compact?`<g font-family="${font}" fill="#333" font-size="30">${xt.filter((k,i)=>i%2===0).map(k=>`<text x="${k.x.toFixed(2)}" y="${b+36}" text-anchor="middle">${fmt(k.value,g.xDecimals)}</text>`).join('')}</g>`:`<g font-family="${font}" fill="#111" font-size="13">${xt.map(k=>`<text x="${k.x.toFixed(2)}" y="${b+19}" text-anchor="middle">${fmt(k.value,g.xDecimals)}</text>`).join('')}${hideY?'':yt.map(k=>`<text x="${l-7}" y="${(k.y+4.5).toFixed(2)}" text-anchor="end">${fmt(k.value,g.yDecimals)}</text>`).join('')}<text x="${(l+r)/2}" y="${b+44}" text-anchor="middle" font-size="14">${esc(xLabels(data))}</text>${hideY?'':`<text x="20" y="${(t+b)/2}" transform="rotate(-90 20 ${(t+b)/2})" text-anchor="middle" font-size="13.5">${esc(opts.yLabel||yLabel(data))}</text>`}</g>`;
+    if(compact)return out+'</svg>';
     if(opts.corner)out+=`<text x="${r-10}" y="${t+20}" text-anchor="end" font-family="${font}" font-size="13" letter-spacing="1" fill="#111">${esc(opts.corner)}</text>`;
     // Series labels sit beside each curve's extreme, coloured like the curve (overlay view).
     const downward=data.technique==='ftir'&&isTransmittance(data.yUnit);
@@ -177,7 +180,10 @@
       const near=g.positionOnly?null:(data.points||[]).reduce((best,q)=>Math.abs(q[0]-m.x)<Math.abs(best[0]-m.x)?q:best,data.points[0]);
       const y=g.positionOnly?b-78:Math.max(t,Math.min(b,g.yPosition(near?near[1]:0))),down=downward&&!g.positionOnly,text=m.label||'';
       out+=`<g data-peak="${m.x}" role="button" tabindex="0" aria-label="${esc(m.ariaLabel||('Peak at '+m.x))}" style="cursor:pointer"><circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="8" fill="transparent"/><circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${m.on?3:2.4}" fill="${m.on?color:'#9aa3a0'}" fill-opacity="${m.on?.9:.65}"/><title>${esc(m.title||text)}</title>`;
-      if(m.on&&text&&roomFor(x)){const y0=down?y+6:y-6,y1=down?y+13:y-13;out+=`<path d="M${x.toFixed(2)} ${y0.toFixed(2)}V${y1.toFixed(2)}" stroke="#444" stroke-width=".8"/><text transform="translate(${(x+3.8).toFixed(2)} ${(down?y+16:y-16).toFixed(2)}) rotate(-90)" text-anchor="${down?'end':'start'}" font-family="${font}" font-size="10.5" fill="#222">${esc(text.length>34?text.slice(0,32)+'…':text)}</text>`}
+      if(m.on&&text&&roomFor(x)){const label=text.length>34?text.slice(0,32)+'…':text;
+        // Downward (transmittance) bands: label hangs from the top of the frame with a leader to the band tip.
+        if(down){const top=t+5,len=label.length*5.6+4;out+=`<path d="M${x.toFixed(2)} ${(top+len).toFixed(2)}V${(y-6).toFixed(2)}" stroke="#999" stroke-width=".7" stroke-dasharray="2 2"/><text transform="translate(${(x+3.8).toFixed(2)} ${top}) rotate(-90)" text-anchor="end" font-family="${font}" font-size="10.5" fill="#222">${esc(label)}</text>`}
+        else out+=`<path d="M${x.toFixed(2)} ${(y-6).toFixed(2)}V${(y-13).toFixed(2)}" stroke="#444" stroke-width=".8"/><text transform="translate(${(x+3.8).toFixed(2)} ${(y-16).toFixed(2)}) rotate(-90)" text-anchor="start" font-family="${font}" font-size="10.5" fill="#222">${esc(label)}</text>`}
       out+='</g>';
     }
     if(opts.credit)out+=`<text x="10" y="${H-8}" font-family="${font}" font-size="11.5" fill="#333">${esc(opts.credit)}</text>`;
@@ -203,6 +209,9 @@
     const points=rows.filter(r=>r[1].p/max>=.001).map(r=>[r[0],100*r[1].p/max]);
     return {points,monoisotopic:mono-0.000549,nominal:Math.round(mono),exact:rows.filter(r=>r[1].p/max>=.001).map(r=>({nominal:r[0],mass:r[1].m-0.000549,relative:100*r[1].p/max}))};
   }
+  const AVG={H:1.008,C:12.011,N:14.007,O:15.999,F:18.998,Na:22.99,Mg:24.305,Si:28.085,P:30.974,S:32.06,Cl:35.45,K:39.098,Ca:40.078,Fe:55.845,Cu:63.546,Zn:65.38,Br:79.904,I:126.904,B:10.81,Li:6.94,Se:78.971,As:74.922,Sn:118.71,Pt:195.084,Gd:157.25,D:2.014};
+  // Formula facts used on the compound page: average molar mass and rings + double bonds (DBE).
+  function formulaFacts(formula){const c=parseFormula(formula);if(!c)return null;let mw=0;for(const [e,n]of Object.entries(c)){if(!AVG[e])return null;mw+=AVG[e]*n}const hal=(c.F||0)+(c.Cl||0)+(c.Br||0)+(c.I||0),dbe=(c.C||0)+(c.Si||0)-((c.H||0)+(c.D||0)+hal+(c.Na||0)+(c.K||0)+(c.Li||0))/2+((c.N||0)+(c.P||0)+(c.B||0))/2+1;return {counts:c,mw,dbe:Number.isInteger(dbe*2)?dbe:null}}
   function instrumentTexture(data,enabled){
     if(!enabled||!data.isSimulated||data.kind!=='curve'||!['ftir','uv'].includes(data.technique))return data;
     const seed=20261005,noise=i=>{let s=((i+1)^seed)>>>0;s=Math.imul(s^(s>>>16),0x45d9f3b);s=Math.imul(s^(s>>>16),0x45d9f3b);return ((s^(s>>>16))>>>0)/4294967295-.5};
@@ -214,5 +223,5 @@
     const meta=record.metadata||{};
     return {source:record.source_url||meta.sourceUrl||'',sourceLabel:meta.sourceLabel||record.source_title||'',measurementType:meta.measurementType||data.measurementType||'',conditions:meta.conditions||data.conditions||{},phase:meta.phase||'',instrument:meta.instrument||'',resolution:meta.resolution||'',license:meta.license||record.source_license||'',citation:meta.citation||meta.reference||'',identityLinkage:meta.identityLinkage||'',eligibleForMatching:meta.eligibleForMatching??null};
   }
-  window.focusSpectraData={spectrumData,csv,chart,svg,niceTicks,lineshape,isotopePattern,parseFormula,detectPeaks,displayData,assignPeaks,canSwitchFtir,canAssignPeaks,sourcePriority,exportProvenance,instrumentTexture,colors,palette,titles};
+  window.focusSpectraData={formulaFacts,spectrumData,csv,chart,svg,niceTicks,lineshape,isotopePattern,parseFormula,detectPeaks,displayData,assignPeaks,canSwitchFtir,canAssignPeaks,sourcePriority,exportProvenance,instrumentTexture,colors,palette,titles};
 })();

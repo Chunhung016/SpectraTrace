@@ -11,8 +11,10 @@ import {microscopy,MICROSCOPY_VERSION} from './lib/microscopy.mjs';
 import {listEvidence,evidence} from './lib/external.mjs';
 import {exportLogicDataset,logicSources,groupRules,LOGIC_VERSION} from './lib/logic.mjs';
 import {simulationRecord,SIMULATION_VERSION} from './lib/simulation.mjs';
-import {importBundledLibraries} from './lib/mslib-import.mjs';
+import {importBundledLibraries,importMassBankBundle} from './lib/mslib-import.mjs';
 import {createNistFetcher,lookupNist,saveNistLookup} from './lib/nist-webbook.mjs';
+import {theoreticalMs,theoreticalRaman,theoreticalFluorescence,theoryRecord} from './lib/theory.mjs';
+import {createCodFetcher,searchCod,saveCalculatedPattern,COD_ORIGIN} from './lib/cod.mjs';
 const root=fileURLToPath(new URL('.',import.meta.url));
 const dir=path.resolve(process.env.SPECTRATRACE_DATA_DIR||path.join(root,'data'));
 const backupDir=path.resolve(process.env.SPECTRATRACE_BACKUP_DIR||path.join(root,'backups'));
@@ -84,6 +86,23 @@ function startNist(c){
   lookupNist(c,{get:nistGet,onStep:s=>job.step=s}).then(r=>saveNistLookup(db,dir,c,r)).then(p=>{nistJobs.delete(c.id)}).catch(e=>{Object.assign(job,{state:'error',error:'NIST lookup failed: '+e.message});setTimeout(()=>nistJobs.get(c.id)===job&&nistJobs.delete(c.id),60000)});
   return job;
 }
+// COD crystal structures → calculated powder patterns (theory from a real structure).
+const codGet=createCodFetcher(),codJobs=new Map();
+const synonymsOf=c=>c.sources.flatMap(s=>[s.provenance?.name,...(s.provenance?.synonyms||[])]).filter(Boolean);
+function codStatus(id){const job=codJobs.get(id);if(job)return job;const saved=db.prepare('SELECT payload,retrieved_at FROM cod_lookups WHERE compound_id=?').get(id);return saved?{state:'done',retrievedAt:saved.retrieved_at,...JSON.parse(saved.payload)}:{state:'never'}}
+function startCod(c,file){
+  if([...codJobs.values()].some(j=>j.state==='running'))fail('Another COD lookup is running; try again shortly',409);
+  const job={state:'running',step:'Searching COD by formula',startedAt:new Date().toISOString()};codJobs.set(c.id,job);
+  (async()=>{
+    const result=await searchCod({...c,synonyms:synonymsOf(c)},{get:codGet}),saved=[],errors=[];
+    const chosen=file?result.entries.filter(e=>e.file===String(file)):result.entries.filter(e=>e.nameMatch).slice(0,3);
+    if(file&&!chosen.length)throw Error('COD entry '+file+' is not a formula match for this compound');
+    for(const e of chosen){job.step='Downloading CIF '+e.file+' and calculating the powder pattern';try{const cif=await codGet(COD_ORIGIN+'/cod/'+e.file+'.cif');if(!cif)throw Error('CIF not found');saved.push(await saveCalculatedPattern(db,dir,c,{cif,source:'cod',entry:e,matchKind:e.nameMatch?'name':'formula-only'}))}catch(err){errors.push({file:e.file,error:err.message})}}
+    const prior=db.prepare('SELECT payload FROM cod_lookups WHERE compound_id=?').get(c.id),payload={status:result.status,reason:result.reason,formula:result.formula,entries:result.entries,saved:[...(prior?JSON.parse(prior.payload).saved||[]:[]).filter(p=>!saved.some(s=>s.id===p.id)),...saved],errors};
+    db.prepare('INSERT INTO cod_lookups VALUES(?,?,?) ON CONFLICT(compound_id) DO UPDATE SET payload=excluded.payload,retrieved_at=excluded.retrieved_at').run(c.id,JSON.stringify(payload),new Date().toISOString());codJobs.delete(c.id);
+  })().catch(e=>{Object.assign(job,{state:'error',error:'COD lookup failed: '+e.message});setTimeout(()=>codJobs.get(c.id)===job&&codJobs.delete(c.id),60000)});
+  return job;
+}
 let backupInProgress=false;
 async function backup() {
   if(backupInProgress)fail('Backup already running',409);backupInProgress=true;
@@ -127,6 +146,15 @@ const server=http.createServer(async(req,res)=>{
     }
     if(req.method==='GET'&&/^\/api\/compounds\/\d+\/microscopy$/.test(p)){const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);const saved=db.prepare('SELECT * FROM microscopy_searches WHERE compound_id=?').get(c.id);if(saved&&Date.now()-Date.parse(saved.retrieved_at)<86400000&&JSON.parse(saved.payload).version===MICROSCOPY_VERSION)return json(res,JSON.parse(saved.payload));try{const result=await microscopy(c.name);db.prepare('INSERT INTO microscopy_searches VALUES(?,?,?) ON CONFLICT(compound_id) DO UPDATE SET payload=excluded.payload,retrieved_at=excluded.retrieved_at').run(c.id,JSON.stringify(result),new Date().toISOString());return json(res,result)}catch(e){fail('Literature lookup unavailable: '+e.message,502)}}
     if(/^\/api\/compounds\/\d+\/nist$/.test(p)&&['GET','POST'].includes(req.method)){const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);if(req.method==='GET')return json(res,nistStatus(c.id));const current=nistStatus(c.id);return json(res,current.state==='running'?current:startNist(c),202)}
+    if(req.method==='GET'&&/^\/api\/compounds\/\d+\/theory$/.test(p)){
+      const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);const technique=url.searchParams.get('technique'),profile=c.logic;
+      if(!profile||profile.status==='unresolved-structure')fail('Build the structural guide first (npm run build:logic)',404);
+      const result=technique==='ms'?theoreticalMs(c.formula,profile,c.smiles):technique==='raman'?theoreticalRaman(profile):technique==='fluorescence'?theoreticalFluorescence(profile):fail('Unsupported theory technique');
+      if(!result)fail('No theory rule applies to this structure',404);if(!result.points)return json(res,{status:'theoretical',none:true,reason:result.reason});
+      return json(res,theoryRecord(technique,result,c));
+    }
+    if(/^\/api\/compounds\/\d+\/cod$/.test(p)&&['GET','POST'].includes(req.method)){const c=compound(db,Number(p.split('/')[3]));if(!c)fail('Compound not found',404);if(req.method==='GET')return json(res,codStatus(c.id));const data=await body(req),current=codStatus(c.id);return json(res,current.state==='running'?current:startCod(c,data.file),202)}
+    if(req.method==='POST'&&/^\/api\/compounds\/\d+\/cif$/.test(p)){const c=compound(db,Number(p.split('/')[3])),data=await body(req);if(!c)fail('Compound not found',404);if(!/^[A-Za-z0-9+/]*={0,2}$/.test(data.base64||''))fail('Invalid file encoding');const cif=Buffer.from(data.base64,'base64');if(!cif.length||cif.length>5000000)fail('CIF must be 1 byte to 5 MB');try{return json(res,await saveCalculatedPattern(db,dir,c,{cif,source:'upload',matchKind:'user'}),201)}catch(e){fail('CIF not usable: '+e.message)}}
     if(req.method==='POST'&&p==='/api/exports'){
       const data=await body(req),format=data.format;if(!['png','jpeg','csv'].includes(format))fail('Unsupported export format');
       if(!/^[A-Za-z0-9+/]*={0,2}$/.test(data.base64||''))fail('Invalid file encoding');const bytes=Buffer.from(data.base64||'','base64');if(!bytes.length||bytes.length>10000000)fail('Export must be 1 byte to 10 MB');
@@ -196,6 +224,6 @@ const server=http.createServer(async(req,res)=>{
 });
 server.listen(port,'127.0.0.1',()=>{console.log(`SpectraTrace local data bank: ${origin}\nDatabase: ${dir}\nCatalog: ${stats(db).uniqueIdentities} unique identities. Originals stay on this computer.`);
   // Bundled EI-MS libraries (sources/ms-libraries) are imported once per archive checksum.
-  if(process.env.SPECTRATRACE_SKIP_BUNDLED_MS!=='1')importBundledLibraries(db,dir,root,m=>console.log('MS library · '+m)).catch(e=>console.error('MS library import failed: '+e.message));});
+  if(process.env.SPECTRATRACE_SKIP_BUNDLED_MS!=='1')importBundledLibraries(db,dir,root,m=>console.log('MS library · '+m)).then(()=>importMassBankBundle(db,dir,root,m=>console.log(m))).catch(e=>console.error('Bundled spectra import failed: '+e.message));});
 function stop(){server.close(()=>{db.close();process.exit()})}
 process.on('SIGINT',stop);process.on('SIGTERM',stop);

@@ -78,6 +78,19 @@ The MS window can show, in this order:
 
 Plots use a printed-spectrum style: closed frame with inward major/minor ticks, 1–2–5 tick values, a red NIST-style FTIR trace with title and transmittance axis, black NMR traces on δ (ppm) without intensity numbers, XRD with optional ln(I) and vertical peak labels, MS sticks with the main ions labelled, and an **overlay** button (wave icon) that draws every available source in colour with labels beside each curve. NMR line lists (T and peak lists) are drawn as a continuous Lorentzian spectrum (line width adjustable under ↔; *|||* switches to sticks); measured NMR traces are always drawn as recorded and CSV exports keep the original line lists.
 
+## MassBank, theory spectra, calculated XRD and the compound dashboard
+
+**MassBank** (`sources/massbank/massbank-subset.json.gz`, 3 MB) is imported on first start: all 12,651 EI mass spectra in MassBank plus up to two LC-MS/MS spectra per catalog compound and ion mode. 662 of the 1,461 catalog compounds now open with real mass spectra. Each record keeps its own MassBank licence (CC0, CC BY, CC BY-SA, CC BY-NC, CC BY-NC-SA, dl-de/by-2-0) and authors; no-derivatives records are excluded. Rebuild from a newer checkout with `npm run build:massbank -- path/to/MassBank-data`.
+
+**Theory (T) when data are missing**, drawn in the same plot style and labelled T:
+
+- MS: molecular ion plus textbook EI cleavages chosen from the structure's functional groups (acylium, tropylium, ketene loss, ·OH/·COOH loss, α-cleavage, halogen loss…). Ion labels appear on the peaks. Teaching weights, not predicted abundances.
+- Raman: the FTIR rule regions re-weighted by Raman activity (C=C, aromatic ring breathing, C≡C strong; O–H/N–H weak).
+- Fluorescence: an emission band only when an aromatic/conjugated fluorophore rule applies, shifted by ring count and substituents; quenching groups are flagged. Otherwise the window says no emission is expected.
+- XRD: a powder pattern needs a crystal structure, so none is invented. **Crystal structure (COD)** searches the Crystallography Open Database (CC0) by formula, uses entries whose name matches the compound, and offers other formula matches to choose from. **CIF** in the XRD window accepts your own structure. Patterns are calculated (Cu Kα1, kinematic intensities, Cromer–Mann form factors, Lorentz-polarisation) and labelled with (hkl).
+
+**Compound page** now shows the structure with molar mass, monoisotopic M⁺·, rings + π bonds, InChIKey and functional-group chips; a card for every technique with a live miniature of the best available source; and a *What to look for* panel (expected IR regions, M⁺·, isotope and nitrogen rules, NMR environment counts). The FTIR analysis page shows the student's own spectrum with the bands used for the suggestions labelled.
+
 ## Starter identity selection
 
 The checked-in [catalog/identities.json](catalog/identities.json) contains **1,500 source-backed collection memberships, 1,461 distinct InChIKeys**:

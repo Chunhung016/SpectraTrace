@@ -53,3 +53,42 @@ body[data-page=unknown].focus-portal main{display:block;padding:4.5rem 0 3rem;wi
 .techniques button{display:inline-flex;flex-direction:column;align-items:center;gap:.12rem;line-height:1.15}.techniques button small{font-size:.6rem;font-weight:400;color:#8d9b93;letter-spacing:.01em;white-space:nowrap}.techniques button.has-data{border-color:#93bea5;color:#2f5d45}.techniques button.has-data small{color:#4c7a60}
 .nist-row{display:flex;gap:.7rem;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:.85rem}.nist-row button{background:#fff;border:1px solid #d7c9ad;color:#7a6239;font-size:.76rem;padding:.45rem .9rem;border-radius:999px}.nist-row button:disabled{opacity:.6}.nist-row span{max-width:560px;text-align:left}
 .floating-plot{background:#fff}.plot{background:#fff;display:block;width:100%;height:auto}.overlay-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6}.overlay-toggle[aria-pressed=true]{background:#efe8f7;color:#6b2fa0}.linewidth-option{display:flex;flex-direction:column;font-size:.75rem}
+
+/* Compound page v2: hero identity + live spectrum cards + teaching clues */
+.compound-stage.cv2{width:min(1180px,100%);margin:0 auto;text-align:left;display:block;padding:0 0 3rem}
+.cv2-hero{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:2.2rem;align-items:center;background:linear-gradient(135deg,#ffffff 0%,#f3f8f5 100%);border:1px solid #dfe9e2;border-radius:24px;padding:1.6rem 2rem;box-shadow:0 18px 50px #2f5d4512}
+.cv2-structure{width:100%;height:260px;background:#fff;border:1px solid #e6eee9;border-radius:18px;display:grid;place-items:center;padding:.6rem}
+.cv2-structure svg{max-height:240px}
+.cv2-kicker{margin:0 0 .35rem;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:#6d8b79;font-weight:600}
+.cv2-identity h1{font-size:clamp(1.7rem,3.6vw,2.6rem);margin:0;font-weight:650;letter-spacing:-.02em;color:#173a2b;overflow-wrap:anywhere}
+.cv2-identity .molecular-formula{font-size:1.15rem;margin:.25rem 0 1rem;color:#3c5d4b}
+.cv2-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.55rem;margin:0 0 1rem}
+.cv2-facts div{background:#fff;border:1px solid #e3ebe6;border-radius:12px;padding:.5rem .7rem}
+.cv2-facts dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:#81968a}
+.cv2-facts dd{margin:.1rem 0 0;font-weight:600;color:#1e3f30;font-size:.92rem}
+.cv2-facts .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.72rem;font-weight:500;word-break:break-all}
+.cv2-groups{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:1rem}.cv2-groups span{font-size:.72rem;padding:.25rem .6rem;border-radius:999px;background:#e8f2ec;color:#2f5d45;border:1px solid #d3e5da}
+.cv2-actions{justify-content:flex-start;margin:0}.cv2-actions button,.cv2-actions a{font-size:.78rem;padding:.5rem .95rem;border-radius:999px;background:#fff;border:1px solid #cfdcd3;color:#2f5d45;text-decoration:none}.cv2-actions #nist-button{border-color:#e3b8b5;color:#9b2f2a}.cv2-actions #cod-button{border-color:#c9bce6;color:#5b3a99}
+.cv2-status{margin:.45rem 0 0;min-height:0}.cv2-status:empty{display:none}.cod-choices{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}.cod-choices button{font-size:.7rem;padding:.2rem .55rem;border-radius:8px;border:1px solid #d8cdef;background:#faf8ff;color:#5b3a99}
+.cv2-head{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin:2rem .2rem .8rem}.cv2-head h2{margin:0;font-size:1.25rem;color:#173a2b}
+.cv2-grid.techniques{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin:0}
+.techniques .cv2-card{display:flex;flex-direction:column;align-items:stretch;gap:.45rem;text-align:left;background:#fff;border:1px solid #e0e9e3;border-radius:18px;padding:.85rem .9rem .75rem;min-width:0;color:#1e3f30;transition:transform .15s ease,box-shadow .15s ease,border-color .15s;cursor:pointer}
+.techniques .cv2-card:hover,.techniques .cv2-card:focus-visible{transform:translateY(-3px);box-shadow:0 14px 34px #2f5d451c;border-color:#a8cbb6}
+.cv2-card-top{display:flex;justify-content:space-between;align-items:baseline;gap:.4rem}.cv2-tech{font-weight:650;font-size:.98rem}
+.techniques .cv2-card small.tech-available{font-size:.62rem;color:#7d9386;text-align:right}
+.techniques .cv2-card.has-data small.tech-available{color:#2f7a52;font-weight:600}.techniques .cv2-card.theory-only small.tech-available{color:#9a7b3f}
+.cv2-thumb{display:block;aspect-ratio:800/372;background:#fafcfb;border-radius:10px;overflow:hidden;position:relative}
+.cv2-thumb .thumb-plot{width:100%;height:100%;display:block}
+.cv2-wait{position:absolute;inset:0;background:linear-gradient(90deg,#f3f7f5 0%,#e8f0eb 50%,#f3f7f5 100%);background-size:200% 100%;animation:cv2-shimmer 1.2s infinite linear}
+@keyframes cv2-shimmer{to{background-position:-200% 0}}
+.cv2-empty{position:absolute;inset:0;display:grid;place-items:center;font-size:.72rem;color:#93a39a;text-align:center;padding:.5rem}
+.cv2-card-foot{display:flex;justify-content:space-between;gap:.5rem;font-size:.7rem;color:#5f7a6b}.cv2-source{color:#98a69e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%}
+.cv2-learn{margin-top:2rem;background:#fff;border:1px solid #e0e9e3;border-radius:22px;padding:1.2rem 1.4rem}.cv2-learn h2{margin:0 0 .8rem;font-size:1.15rem;color:#173a2b}
+.cv2-learn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem}
+.cv2-learn article{border-left:3px solid #9fc7b0;padding:.1rem 0 .1rem .8rem}.cv2-learn article button{background:none;border:0;padding:0;font-weight:650;color:#2f5d45;font-size:.9rem;cursor:pointer;text-decoration:underline dotted}
+.cv2-learn ul{margin:.4rem 0 0;padding-left:1rem;font-size:.78rem;color:#4b6658;line-height:1.5}
+.add-cif{font-size:.68rem;font-weight:700;color:#5b3a99;cursor:pointer;display:grid;place-items:center;width:34px;height:30px}
+@media(max-width:900px){.cv2-hero{grid-template-columns:1fr;padding:1.2rem}.cv2-grid.techniques{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.cv2-grid.techniques{grid-template-columns:1fr}}
+.cv2-grid.techniques{width:100%;max-width:none}.cv2-card-top{flex-direction:column;align-items:flex-start;gap:.1rem}.techniques .cv2-card small.tech-available{text-align:left;white-space:normal}
+.analysis-plot{background:#fff;border:1px solid #e0e9e3;border-radius:18px;padding:.4rem;margin:1rem 0}.analysis-plot:empty{display:none}
